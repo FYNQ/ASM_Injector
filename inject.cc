@@ -61,6 +61,7 @@ static char *rfile = NULL;
 typedef map<string, tracer_ruleset> tracer_rule_map;
 static tracer_rule_map rules;
 
+tree global_decls = NULL_TREE;
 
 
 
@@ -121,6 +122,34 @@ static unsigned int check() {
 
 typedef char *char_p;
 
+
+tree build_string_constant(const char* string, int isConst) {
+    size_t len = strlen(string);
+    tree index_type = build_index_type(size_int(len));
+    tree const_char_type = isConst ?  \
+                            build_qualified_type(unsigned_char_type_node, \
+                            TYPE_QUAL_CONST) : unsigned_char_type_node;
+
+//    tree string_type = build_array_type(const_char_type, index_type);
+    tree string_type = build_array_type_nelts (char_type_node, len + 1);
+    TYPE_STRING_FLAG(string_type) = 1;
+    tree res = build_string(len + 1, string);
+    TREE_TYPE(res) = string_type;
+
+  return res;
+}
+
+static tree create_var(tree type, const char *name)
+{
+    tree var;
+
+    var = create_tmp_var(type, name);
+    add_referenced_var(var);
+    mark_sym_for_renaming(var);
+
+    return var;
+}
+
 static bool
 flag_instrument_functions_exclude_p (tree fndecl)
 {
@@ -160,6 +189,17 @@ gimple_seq pop_stack() {
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
     gimple g;
+
+    vec<tree, va_gc> *vec_fence = NULL;
+    tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
+    vec_safe_push(vec_fence, fence);
+
+    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+//    gimple_seq_add_stmt(&seq, g);
+
+
 
 
     g = gimple_build_asm_vec("pop %%rsp", NULL, NULL, NULL, NULL);
@@ -202,12 +242,49 @@ gimple_seq pop_stack() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
+    g = gimple_build_asm_vec("pop %%r8", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("pop %%r9", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("pop %%r10", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
     g = gimple_build_asm_vec("pop %%r11", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("sub $-128,%%rsp", NULL, NULL, NULL, NULL);
+    g = gimple_build_asm_vec("pop %%r12", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("pop %%r13", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("pop %%r14", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("pop %%r15", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+
+    g = gimple_build_asm_vec("sub $-0x1000,%%rsp", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
 //    gimple_seq_add_stmt(&seq, g);
@@ -221,15 +298,56 @@ gimple_seq push_stack() {
     gimple_seq seq = NULL;
     gimple g;
 
-    g = gimple_build_asm_vec("add $-128,%%rsp", NULL, NULL, NULL, NULL);
+
+    g = gimple_build_asm_vec("add $-0x1000,%%rsp", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
 //    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("push %%r15", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+    g = gimple_build_asm_vec("push %%r14", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+    g = gimple_build_asm_vec("push %%r13", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+    g = gimple_build_asm_vec("push %%r12", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
 
     g = gimple_build_asm_vec("push %%r11", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("push %%r10", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("push %%r9", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("push %%r8", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
 
     g = gimple_build_asm_vec("push %%rcx", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
@@ -261,7 +379,6 @@ gimple_seq push_stack() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    // ----- 
     g = gimple_build_asm_vec("push %%rbx", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
@@ -273,177 +390,102 @@ gimple_seq push_stack() {
     gimple_seq_add_stmt(&seq, g);
 
 
+    vec<tree, va_gc> *vec_fence = NULL;
+    tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
+    vec_safe_push(vec_fence, fence);
 
+    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
 
     return seq;
 }
 
-gimple_seq write_cstring(const char *msg){
-//    char *msg;
-    size_t len;
-//    asprintf(&msg, "%s%u\n", _msg);
+
+
+
+/* rsi ... pointer to buffer, needs to be set before calling
+ * len of message
+ * out could be 1(stdout) or 2 (stderr)
+ * */
+gimple_seq print_str2(tree str, tree len, tree fd) {
+    gimple g;
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
-    gimple g;
-    tree tmsg, tlen, out_buf, buf_len;
-
+    tree len_info, fd_info;
+    vec<tree, va_gc> *vec_fd = NULL;
     vec<tree, va_gc> *vec_msg = NULL;
     vec<tree, va_gc> *vec_msg_len = NULL;
 
-    len = strlen(msg);
-    tlen = build_int_cst(integer_type_node, len);
+    fd_info = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
+    fd_info = chainon(NULL_TREE, build_tree_list(fd_info, fd));
+    vec_safe_push(vec_fd, fd_info);
 
-    buf_len = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
-    buf_len = chainon(NULL_TREE, build_tree_list(buf_len, tlen));
-    vec_safe_push(vec_msg_len, buf_len);
+    len_info = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
+    len_info = chainon(NULL_TREE, build_tree_list(len_info, len));
+    vec_safe_push(vec_msg_len, len_info);
 
-    len = strlen(msg) + 1;
-    tmsg = build_string (len, msg);
-    TREE_TYPE (tmsg) = build_array_type_nelts (char_type_node, len);
-    TREE_READONLY (tmsg) = 1;
-    TREE_STATIC (tmsg) = 1;
-    tmsg = build_fold_addr_expr (tmsg);
-
-    out_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    out_buf = chainon(NULL_TREE, build_tree_list(out_buf, tmsg));
+    tree out_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
+    out_buf = chainon(NULL_TREE, build_tree_list(out_buf, str));
     vec_safe_push(vec_msg, out_buf);
+    // KKK
 
-    g = gimple_build_asm_vec("mov %0, %%rsi", vec_msg, NULL, NULL, NULL);
+
+
+    g = gimple_build_asm_vec("movq %0, %%rsi", vec_msg, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("movq $1, %%rdi", NULL, NULL, NULL, NULL);
+    g = gimple_build_asm_vec("movq %0, %%rdx", vec_msg_len, NULL, NULL, NULL);
+    //g = gimple_build_asm_vec("mov $5, %%edx", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    /* clear register  */
-    g = gimple_build_asm_vec("xor %%rdx, %%rdx", NULL, NULL, NULL, NULL);
+    //g = gimple_build_asm_vec("mov $1, %%rdi", NULL, NULL, NULL, NULL);
+    //g = gimple_build_asm_vec("movq %0, %%rdi", vec_fd, NULL, NULL, NULL);
+    //g = gimple_build_asm_vec("movq $1, %%eax", NULL, NULL, NULL, NULL);
+    //asm_or_stmt = as_a_gasm(g);
+    //gimple_asm_set_volatile(asm_or_stmt, true);
+    //gimple_seq_add_stmt(&seq, g);
+
+    /* set output and syscall number */
+    g = gimple_build_asm_vec("mov $1, %%rax", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    g = gimple_build_asm_vec("mov %%rax, %%rdi", NULL, NULL, NULL, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+//    gimple_seq_add_stmt(&seq, g);
+
+
+
+    g = gimple_build_asm_vec("syscall", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
     
-    /* Set len*/
-    g = gimple_build_asm_vec("movl %0, %%edx", vec_msg_len, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("movq $1, %%rax", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-    g = gimple_build_asm_vec("syscall", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true); 
-    gimple_seq_add_stmt(&seq, g);
-    //free(msg);
- 
     return seq;
 }
 
 
-void create_buf(){
-
-}
-
-gimple_seq wr_addr_tree(tree addr) {
-    char *buf;
-    size_t len;
+/* 
+ * rdi ... location of register to be printed 
+ * rdx ... translation table location on stack
+ * rsi ... output buffer on stack again
+ */
+gimple_seq print_reg() {
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
-    tree in_addr;
+    gimple_seq sseq = NULL;
     gimple g;
 
-    vec<tree, va_gc> *vec_msg = NULL;
-    vec<tree, va_gc> *vec_xlat = NULL;
-    vec<tree, va_gc> *vec_msg_len = NULL;
-    vec<tree, va_gc> *vec_out_buf = NULL;
-    vec<tree, va_gc> *vec_test = NULL;
-    vec<tree, va_gc> *vec_bout = NULL;
-    vec<tree, va_gc> *vec_addr = NULL;
-
-    // create vector variable for addr
-    tree addr_in = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    addr_in = chainon(NULL_TREE, build_tree_list(addr_in, addr));
-    vec_safe_push(vec_addr, addr_in);
-
-
-    char *info;
-    asprintf(&info, "0123456789abcdef"); 
-    len = strlen (info) + 1; 
-    tree hex_xlat = build_string (len, info); 
-    TREE_TYPE (hex_xlat) = build_array_type_nelts (char_type_node, len); 
-    TREE_READONLY (hex_xlat) = 0; 
-    TREE_STATIC (hex_xlat) = 1; 
-    hex_xlat = build_fold_addr_expr (hex_xlat); 
-    free(info); 
-
-    // translation table
-    tree in_hex_xlat = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
-    in_hex_xlat = chainon(NULL_TREE, build_tree_list(in_hex_xlat, hex_xlat));
-    vec_safe_push(vec_xlat, in_hex_xlat);
-
-    // load xlat tabel to rdx    
-    //g = gimple_build_asm_vec("mov %0, %%rdx", vec_xlat, NULL, NULL,  NULL);
     g = gimple_build_asm_vec("lea -16(%%rsp), %%rsi", NULL, NULL, NULL,  NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-
-    // load addr to reg
-
-    g = gimple_build_asm_vec("mov %%rbp, %%rcx\n\t", NULL, NULL, NULL,  NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-
-
-    g = gimple_build_asm_vec("add $8, %%rcx\n\t", NULL, NULL, NULL,  NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-
-    g = gimple_build_asm_vec("movq (%%rcx), %%rdi", NULL, NULL, NULL,  NULL);
-    //g = gimple_build_asm_vec("mov %0, %%rdi", vec_addr, NULL, NULL,  NULL);
-    //g = gimple_build_asm_vec("mov $0xdeadbeef, %%rdi", NULL, NULL, NULL,  NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-
-
-
-  
-    // create array type
-    tree __str_array_type = build_array_type(char_type_node,\
-                               build_index_type(build_int_cst(NULL_TREE, 50)));
-    tree __str_type = build_pointer_type(char_type_node);
-
-    // create buffer variable for output
-    tree dec_node = build_decl(UNKNOWN_LOCATION, VAR_DECL, NULL_TREE, __str_type);
-    DECL_NAME(dec_node) = create_tmp_var_name("buf");
-    DECL_ARTIFICIAL(dec_node) = 1;
-    TREE_STATIC(dec_node) = 1;
-    //varpool_finalize_decl(dec_node);
-    tree out_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "=m"));
-    out_buf = chainon(NULL_TREE, build_tree_list(out_buf, dec_node));
-    vec_safe_push(vec_bout, out_buf);
-
-
-    //g = gimple_build_asm_vec("lea %0, %%rsi", NULL, vec_bout, NULL,  NULL);
-    /*
-    g = gimple_build_asm_vec("lea -16(%%rsp), %%rsi", NULL, NULL, NULL,  NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-    */
-  g = gimple_build_asm_vec("mov %%rsp, %%rcx", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
@@ -570,35 +612,228 @@ gimple_seq wr_addr_tree(tree addr) {
     return seq;
 }
 
+
+gimple_seq print_ret_addr() {
+    gimple g;
+    gasm *asm_or_stmt;
+    gimple_seq seq = NULL;
+    gimple_seq sseq = NULL;
+
+    /* load base pointer to reg */
+    g = gimple_build_asm_vec("mov %%rbp, %%rcx\n\t", NULL, NULL, NULL,  NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    /* get retrun address from stack*/
+    g = gimple_build_asm_vec("add $8, %%rcx\n\t", NULL, NULL, NULL,  NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+    g = gimple_build_asm_vec("movq (%%rcx), %%rdi", NULL, NULL, NULL,  NULL);
+    //g = gimple_build_asm_vec("movq $0xdeadbeefdeadbeef, %%rdi", NULL, NULL, NULL,  NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+    sseq = print_reg();
+    gimple_seq_add_seq(&seq, sseq);
+    //XXX
+    return seq;
+}
+static tree jpanic;
+static void init_jpanic_global(void)
+{
+    if (jpanic == NULL_TREE)
+    {
+        jpanic = build_decl(BUILTINS_LOCATION, VAR_DECL, NULL, integer_type_node);
+        jpanic = make_ssa_name(jpanic, gimple_build_nop());
+        DECL_NAME(jpanic) = create_tmp_var_name("__el_jpanic");
+        TREE_STATIC(jpanic) = 1;
+        DECL_ARTIFICIAL(jpanic) = 1;
+        DECL_REGISTER(jpanic) = 1;
+    }
+}
+
+static tree intArray; 
+
+
+static tree add_local(char *name, char *decl_init) {
+    tree decl = build_decl (UNKNOWN_LOCATION, VAR_DECL,
+                    get_identifier(name),
+                    build_array_type(unsigned_char_type_node,
+                    build_index_type(size_int(strlen(decl_init)))));
+    
+    TREE_ADDRESSABLE(decl) = true;
+    TREE_USED(decl) = true;
+    DECL_INITIAL(decl) = build_string_constant((const char*)\
+                                                decl_init, false);
+    location_t loc;
+    loc = DECL_SOURCE_LOCATION(current_function_decl);
+	DECL_CONTEXT(decl) = current_function_decl;
+	DECL_ARTIFICIAL(decl) = 1;
+
+	TREE_STATIC(decl) = 1;
+	TREE_READONLY(decl) = 1;
+	TREE_ADDRESSABLE(decl) = 1;
+	TREE_USED(decl) = 1;
+    layout_decl(decl, 16);
+//    debug_tree(decl);
+	add_referenced_var(decl);
+	add_local_decl(cfun, decl);
+
+	varpool_add_new_variable(decl);
+	varpool_mark_needed_node(varpool_node(decl));
+
+	DECL_CHAIN(decl) = BLOCK_VARS(DECL_INITIAL(current_function_decl));
+	BLOCK_VARS(DECL_INITIAL(current_function_decl)) = decl;
+
+    return decl;
+}
+
+
+
 void instrument_calls() {
     basic_block bb;
     gimple_stmt_iterator gsi;
-    gimple_seq seq_pre = NULL;
-    gimple_seq seq_post = NULL;
+    gimple_seq sseq = NULL;
     gimple_seq seq = NULL;
+    gimple g, local_stmt;
+    gasm *asm_or_stmt;       
     gimple stmt;
+    char *fun_name;
+    char *info;
+    char out_buffer[128];
+    char *tmp;
+    vec<tree, va_gc> *vec_addr = NULL;
+
+    asprintf(&tmp, "\n");
+    basic_block on_entry;
+
+    tree dec_node;
+
+    vec<tree, va_gc> *vec_fence = NULL;
+    tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
+    vec_safe_push(vec_fence, fence);
+
 
     FOR_EACH_BB_FN (bb, cfun) {
+
+//        asprintf(&info, "CALL:%s:ADDR:", \
+//                        IDENTIFIER_POINTER(DECL_NAME(cfun->decl)));
+        asprintf(&info, "CALL:%s:ADDR:", "0x0000000000000000000000000\n");
+
+
+        tree buf_len = build_int_cst(long_unsigned_type_node, strlen(info) + 1);
+        tree fd = build_int_cst(long_unsigned_type_node, 1);
+
+        tree decl = NULL_TREE;
+        tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer");
+        decl = add_local("buf", info);
+        gassign *assign;
+        tree expr = build_fold_addr_expr(decl);
+//        debug_tree(expr);
+        assign = gimple_build_assign(buf_ref, expr);
+        on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
+        gsi = gsi_start_bb(on_entry);
+        gsi_insert_seq_before(&gsi, assign, GSI_NEW_STMT);
+
+
         for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
             stmt = gsi_stmt(gsi);
-            if (is_gimple_call(stmt)) {
 
-                tree fndecl = gimple_call_fn(as_a <gcall *>(stmt));
-                seq = wr_addr_tree(fndecl);
-                gsi_insert_seq_after(&gsi, seq, GSI_NEW_STMT);
+            if (gimple_code (stmt) == GIMPLE_CALL) {
+                seq = NULL;
 
-                debug_tree(SSA_NAME_VAR (fndecl));
-                print_node_brief (stderr, "", fndecl, 0);
 
-                if (!fndecl) {
-                    /* indirect call */
-                    print_gimple_stmt (stderr, stmt, 0, 0);
-//                    debug_tree(fndecl);
-                }
+    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+
+                sseq = push_stack();
+                gimple_seq_add_seq(&seq, sseq);
+
+                vec_addr = NULL;
+	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
+	            tree output = build_tree_list(NULL_TREE, \
+                                        build_const_char_string(3, "r"));
+	            output = chainon(NULL_TREE, build_tree_list(output, callee));
+                vec_safe_push(vec_addr, output);
+                g = gimple_build_asm_vec("mov %0, %%rdi", vec_addr, \
+                                                NULL, NULL,  NULL);
+                asm_or_stmt = as_a_gasm(g);
+                gimple_asm_set_volatile(asm_or_stmt, true);
+                //gimple_seq_add_stmt(&seq, g);
+
+                //sseq = print_reg();
+                //gimple_seq_add_seq(&seq, sseq);
+
+
+                //debug_tree(buf_ref);
+                //tree t = build_fold_addr_expr (buf_decl);
+                sseq = print_str2(expr, buf_len, fd);
+                gimple_seq_add_seq(&seq, sseq);
+
+
+
+
+
+                //fprintf(stderr, "## instrument_calls\n");
+                //print_gimple_stmt(stderr, stmt,0,0);
+
+
+
+                //gimple_seq_add_seq(&seq, stmt);
+
+                //sseq = load_str(fun_name, 1);
+                //gimple_seq_add_seq(&seq, sseq);
+
+                //sseq = print_str(strlen(fun_name), 1);
+                //gimple_seq_add_seq(&seq, sseq);
+
+
+/*
+                vec_addr = NULL;
+	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
+	            tree output = build_tree_list(NULL_TREE, \
+                                        build_const_char_string(3, "r"));
+	            output = chainon(NULL_TREE, build_tree_list(output, callee));
+                vec_safe_push(vec_addr, output);
+                g = gimple_build_asm_vec("mov %0, %%rdi", vec_addr, \
+                                                NULL, NULL,  NULL);
+                asm_or_stmt = as_a_gasm(g);
+                gimple_asm_set_volatile(asm_or_stmt, true);
+                gimple_seq_add_stmt(&seq, g);
+                sseq = print_reg();
+                gimple_seq_add_seq(&seq, sseq);
+                sseq = load_str(tmp);
+                gimple_seq_add_seq(&seq, sseq);
+                sseq = print_str(strlen(tmp), 1);
+                gimple_seq_add_seq(&seq, sseq);
+*/
+
+                sseq = pop_stack();
+                gimple_seq_add_seq(&seq, sseq);
+    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
+
+                gsi_insert_seq_before(&gsi, seq, GSI_SAME_STMT);
+
             }
         }
+
+        free(info);
     }
+    free(tmp);
 }
+
+
 
 void instrument_entry(){
     basic_block on_entry, on_exit;
@@ -607,38 +842,31 @@ void instrument_entry(){
     expanded_location xloc;
     //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
     char *sep;
+    char *info;
     char *arrow;
     asprintf(&arrow, "---->");
     asprintf(&sep, ":");
 
+    static bool initted;
+
+    if (!initted)
+    {
+        init_jpanic_global();
+        initted = true;
+    }
+
+
     //if (rs == NULL) {
     //    return 0;
     //}
-    fprintf(stderr, "LOAD PLUGIN\n");
 
+    fprintf(stderr, "## instrument_entry\n");
     xloc = expand_location(DECL_SOURCE_LOCATION(cfun->decl));
     const char *fname = DECL_SOURCE_FILE(cfun->decl);
-    printf("--->> %s\n", fname);
+    printf("## file: %s\n## function: %s\n", fname, current_function_name());
     char *fun_name;
-    asprintf(&fun_name, "::%s::\n", current_function_name());
+    asprintf(&info, "ENTRY:%s:ADDR:", IDENTIFIER_POINTER(DECL_NAME(cfun->decl)));
     
-    // Assemble built-in calls to get caller/callee address
-    tree addr0, addr1, builtin_decl;
-    gimple g0, g1;
-    builtin_decl = builtin_decl_implicit (BUILT_IN_FRAME_ADDRESS);
-    g0 = gimple_build_call (builtin_decl, 1, integer_zero_node);
-    addr0 = make_ssa_name (ptr_type_node);
-    gimple_call_set_lhs (g0, addr0);
-    gimple_set_location (g0, cfun->function_start_locus);
-
-
-    builtin_decl = builtin_decl_implicit (BUILT_IN_FRAME_ADDRESS);
-    g1 = gimple_build_call (builtin_decl, 1, integer_one_node);
-    addr1 = make_ssa_name (ptr_type_node);
-    gimple_call_set_lhs (g1, addr1);
-    gimple_set_location (g1, cfun->function_start_locus);
-
-
     /*
     used for exit instrumentation
     gsi = gsi_last_bb(on_entry);
@@ -648,64 +876,45 @@ void instrument_entry(){
             && !flag_instrument_functions_exclude_p (cfun->decl)
             && !(DECL_EXTERNAL (cfun->decl)) ) {
 
+        tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer");
+        tree buf_decl;
+        //gimple local_stmt = add_local("buf", info, buf_decl, buf_ref);
         //debug_tree(DECL_ARGUMENTS(current_function_decl));
         on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
-        //on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
-        //on_entry = ENTRY_BLOCK_PTR_FOR_FN(cfun);
-      gsi = gsi_start_bb(on_entry);
-//        gsi = gsi_last_bb(on_entry);
-        create_buf();    
+        gsi = gsi_start_bb(on_entry);
+        //gsi_insert_before(&gsi, local_stmt, GSI_NEW_STMT);
+        //print_gimple_stmt(stderr, local_stmt, 0,0);
+
+
         /* Pop stack*/
         seq = pop_stack();
         gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
-//        seq = write_cstring(sep);//XX
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-        
-//        seq = wr_addr_tree(addr0);
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-//        gsi_insert_after(&gsi, seq, GSI_NEW_STMT);
-        /* call __builtin_return_address(1) 
-         * and print to stderr */
-//        seq = write_cstring(fname);//XXX
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-//        seq = write_cstring(fname);//XXX
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-
-        seq = write_cstring(fun_name);//XXX
+        seq = print_ret_addr();
         gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
 
-//        seq = wr_addr_tree(addr0);
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-//        gsi_insert_before(&gsi, g0, GSI_NEW_STMT);
-
-       
-//        seq = write_cstring("::");//XXX
-//        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-
-        seq = wr_addr_tree(addr0);
-        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-//        gsi_insert_before(&gsi, g0, GSI_NEW_STMT);
+        //seq = print_str(strlen(fun_name), 2);
+        //gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
+        //seq = load_str(fun_name, 1);
+        //gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
         /* Push stack*/
         seq = push_stack();
         gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-        //gsi_insert_seq_after(&gsi, seq, GSI_NEW_STMT);
     }
     
     free(sep);
     free(arrow);
-    free(fun_name);
+    //free(fun_name);
 }
 
 static unsigned int callgraph_execute(){
+//    instrument_entry();
     instrument_calls();
-    instrument_entry();
+
 //    instrument_exit();
+    return 0;
 }
 
 
@@ -713,130 +922,152 @@ static unsigned int callgraph_execute(){
 
 
 static void start_unit(void *event_data, void *user_data){
-    char *buf;
-    size_t len;
+    tree main_type = build_function_type_list (integer_type_node, NULL_TREE);
+    /* Function with no source location, named "main" and of the above type. */
+    tree main_decl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
+                                   get_identifier ("testxx"), main_type);
+
+    /* File scope. */
+    DECL_CONTEXT (main_decl) = NULL_TREE;
+    /* Has a definition. */
+    TREE_STATIC (main_decl) = true;
+    /* External linkage. */
+    TREE_PUBLIC (main_decl) = false;
+    TREE_USED(main_decl) = true;
+    /* Don't need anywhere to store argumnets. */
+    DECL_ARGUMENTS (main_decl) = NULL_TREE;
+
+    /* Return value for main (). */
+    /* Result variable with no name and same type as main () returns. */
+    tree main_ret = build_decl (BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
+                                  TREE_TYPE (main_type));
+    /* Scoped within the main function. */
+    DECL_CONTEXT (main_ret) = main_decl;
+    /* Generated by the compiler. */
+    DECL_ARTIFICIAL (main_ret) = true;
+    /* No debugging symbol. */
+    DECL_IGNORED_P (main_ret) = true;
+
+    /* The result of the function is the above value. */
+    DECL_RESULT (main_decl) = main_ret;
+
+    tree decls = NULL_TREE;
+
+    // Declare a variables
+    tree intArray = build_decl (UNKNOWN_LOCATION, VAR_DECL, \
+            get_identifier("array"), build_array_type(unsigned_char_type_node, \
+            build_index_type(size_int(9))));
+    TREE_ADDRESSABLE(intArray) = true;
+    TREE_USED(intArray) = true;
+
+    TREE_CHAIN( intArray ) = decls;
+    decls = intArray;
+
+    tree variable_pk = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier("pk"), build_pointer_type(integer_type_node));
+    TREE_ADDRESSABLE(variable_pk) = true;
+    TREE_USED(variable_pk) = true;
+
+    TREE_CHAIN( variable_pk ) = decls;
+    decls = variable_pk;
+
+    tree variable_pi = build_decl (UNKNOWN_LOCATION, VAR_DECL, \
+            get_identifier("pi"), build_pointer_type(integer_type_node));
+    TREE_ADDRESSABLE(variable_pi) = true;
+    TREE_USED(variable_pi) = true;
+
+    TREE_CHAIN( variable_pi ) = decls;
+    decls = variable_pi;
 
 
-    printf("## --------------- start ----------------");
-    /*
-    asprintf(&buf, "buf");
-    tree __str_id = get_identifier(buf);
-    len = 16;//strlen (info) + 1;
-    // create a new type for const char
-    
-    tree __str_array_type = build_array_type(char_type_node,\
-            build_index_type(build_int_cst(NULL_TREE, len)));
-    tree __str_type = build_pointer_type(char_type_node);
-    tree __str_array_ptr_type = build_pointer_type(__str_array_type);
+    tree variable_i = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier("i"),   integer_type_node);
+    TREE_ADDRESSABLE(variable_i) = true;
+    TREE_USED(variable_i) = true;
 
-    tree __str_decl = build_decl(UNKNOWN_LOCATION, VAR_DECL, __str_id, __str_type);
+    TREE_CHAIN( variable_i ) = decls;
+    decls = variable_i;
 
-    TREE_STATIC(__str_decl) = true;
+    DECL_INITIAL(intArray) = build_string_constant((const char*) "abcd efgh", false);
+    DECL_INITIAL(variable_pi) = build1(ADDR_EXPR,\
+            build_pointer_type(TREE_TYPE(variable_i)), variable_i);
+  /* Block to represent the scope of local variables. */
+  //tree bl = build_block (NULL_TREE, NULL_TREE, main_decl, NULL_TREE);
+    tree bl = build_block (decls, NULL_TREE, main_decl, NULL_TREE);
+    DECL_INITIAL (main_decl) = bl;
+    TREE_USED (bl) = true;
 
-    // external linkage
-    TREE_PUBLIC(__str_decl) = false;
+    /* The bind expression contains the statements to execute. */
+    tree bind = build3 (BIND_EXPR, void_type_node, BLOCK_VARS (bl), \
+                                NULL_TREE, bl);
+    /* Don't optimise it away. */
+    TREE_SIDE_EFFECTS (bind) = true;
 
-    DECL_CONTEXT(__str_decl) = NULL_TREE;
-    TREE_USED(__str_decl) = true;
+    /* List of statements in the main () function. */
+    tree main_stmts = alloc_stmt_list ();
 
-    // initialization to constant/read-only string 
-    tree __str_init_val = build_string(len, "Global Value: %u\n");
-    TREE_TYPE(__str_init_val) = __str_array_type;
-    TREE_CONSTANT(__str_init_val) = false;
-    TREE_STATIC(__str_init_val) = true;
-    TREE_READONLY(__str_init_val) = false;
 
-    tree adr_expr = build1(ADDR_EXPR, __str_array_ptr_type, __str_init_val);
-    tree nop_expr = build1(NOP_EXPR, __str_type, adr_expr);
+    append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_i),\
+                                    &main_stmts);
 
-    DECL_INITIAL(__str_decl) = nop_expr;
-    layout_decl(__str_decl, 16);
-    // varpool_finalize_decl(__str_decl);
 
-    //rest_of_decl_compilation(__str_decl, 1, 0);
+
+    append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_pi),\
+                                    &main_stmts);
+
+
+
+    append_to_statement_list(build1(DECL_EXPR, void_type_node, intArray),\
+                                    &main_stmts);
+
+
+
+    /* Build the puts () function declaration. */
+    /* Function type which returns int with unspecified parameters. */
+    tree puts_type = build_function_type (integer_type_node, NULL_TREE);
+    /* Function named "puts" of that type. */
+    tree puts_decl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
+                               get_identifier ("puts"), puts_type);
+    /* Only a declaration, no definition. */
+    DECL_EXTERNAL (puts_decl) = true;
+    /* External linkage. */
+    TREE_PUBLIC (puts_decl) = true;
+    /* puts("..."); */
+    /* Expression which calls puts () with 1 argument which is a string literal
+     * containing the source file data. */
+    /* tree call_puts = build_call_expr (puts_decl, 1,
+                                    build_string_literal (
+                                        0,
+                                        0));
+       append_to_statement_list (call_puts, &main_stmts);
     */
+    /* return 0; */
+    /* Assign 0 to the return value. */
+    tree main_set_ret = build2 (MODIFY_EXPR, TREE_TYPE (main_ret), main_ret,
+                                  build_int_cst (integer_type_node, 0));
+    /* Perform the assignment and return from the function. */
+    tree main_ret_expr = build1 (RETURN_EXPR, void_type_node, main_set_ret);
+    append_to_statement_list (main_ret_expr, &main_stmts);
 
 
 
-   /* 
-    free(buf);
 
+    /* Make the bind contain the statements. */
+    BIND_EXPR_BODY (bind) = main_stmts;
+    /* Set main to use the statements in bind. */
+    DECL_SAVED_TREE (main_decl) = bind;
 
-    tree buf_len, in_buf, out_buf;
-    tree tlen = build_int_cst(integer_type_node, len);
-    buf_len = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
-    buf_len = chainon(NULL_TREE, build_tree_list(buf_len, tlen));
-    vec_safe_push(vec_msg_len, buf_len);
+    /* Add the main function to the list of global declarations. */
+    global_decls = chainon (main_decl, global_decls);
 
-    out_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "=m"));
-    out_buf = chainon(NULL_TREE, build_tree_list(out_buf, __str_decl));
-    vec_safe_push(vec_bout, out_buf);
-
-    in_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    in_buf = chainon(NULL_TREE, build_tree_list(in_buf, __str_decl));
-    vec_safe_push(vec_bin, in_buf);
-
-*/
-
-    /* lookup table */
-    /*
-    asprintf(&buf, "0123456789abcdef");
-    len = strlen (buf) + 1;
-    tree hex_xlat = build_string (len, buf);
-    TREE_TYPE (hex_xlat) = build_array_type_nelts (char_type_node, len);
-    TREE_READONLY (hex_xlat) = 1;
-    TREE_STATIC (hex_xlat) = 1;
-    hex_xlat = build_fold_addr_expr (hex_xlat);
-    free(buf);   
-
-    tree in_hex_xlat = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    in_hex_xlat = chainon(NULL_TREE, build_tree_list(in_hex_xlat, hex_xlat));
-    vec_safe_push(vec_xlat, in_hex_xlat);
-
-    asprintf(&buf, "xlat");
-    tree xlat = get_identifier(buf);
-    len = 16;//strlen (info) + 1;
-
-    tree xlat_decl = build_decl(UNKNOWN_LOCATION, VAR_DECL, xlat, __str_type);
-
-    TREE_STATIC(xlat_decl) = true;
-
-    // external linkage
-    TREE_PUBLIC(xlat_decl) = false;
-
-    DECL_CONTEXT(xlat_decl) = NULL_TREE;
-    TREE_USED(xlat_decl) = true;
-
-    // initialization to constant/read-only string
-    __str_init_val = build_string(len, "0123456789abcdef");
-    TREE_TYPE(__str_init_val) = __str_array_type;
-    TREE_CONSTANT(__str_init_val) = false;
-    TREE_STATIC(__str_init_val) = true;
-    TREE_READONLY(__str_init_val) = true;
-
-    adr_expr = build1(ADDR_EXPR, __str_array_ptr_type, __str_init_val);
-    nop_expr = build1(NOP_EXPR, __str_type, adr_expr);
-
-    DECL_INITIAL(xlat_decl) = nop_expr;
-
-    layout_decl(xlat_decl, 16);
-    // rest_of_decl_compilation(xlat_decl, 1, 0);
-    varpool_finalize_decl(xlat_decl);
-    free(buf);
-
-    in_hex_xlat = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    in_hex_xlat = chainon(NULL_TREE, build_tree_list(in_hex_xlat, xlat_decl));
-    vec_safe_push(vec_xlat, in_hex_xlat);
-*/
-
-
-
+    /* Prepare declarations for middle-end. */
+    for (tree t = global_decls; t; t = TREE_CHAIN (t)) {
+        gimplify_function_tree (t);
+        cgraph_node::finalize_function(t, false);
+    }
 }
 
 static void test(void *event_data, void *user_data){
     tree node;
     node = (tree)event_data;
-//    debug_tree(node);
     const char *name;
     if (TREE_CODE(node) != PARM_DECL && !DECL_EXTERNAL(node)) {
         if (DECL_NAME (node)) {
@@ -896,14 +1127,14 @@ int plugin_init (struct plugin_name_args *plugin_info,
     tracer_parse_rules(rfl, rules_file.c_str());
     fclose(rfl);
 
-//    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_AFTER);
-    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_BEFORE);
+    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_AFTER);
+//    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_BEFORE);
     // Register the phase right after omplower
     struct register_pass_info pass_info;
 
     register_callback(plugin_name, PLUGIN_INFO, NULL, &callgraph_plugin_info);
     register_callback (plugin_name, PLUGIN_PASS_MANAGER_SETUP, NULL, &callgraph_pass_info);
-    register_callback(plugin_name, PLUGIN_START_UNIT, start_unit, NULL);
+//    register_callback(plugin_name, PLUGIN_START_UNIT, start_unit, NULL);
     register_callback(plugin_name, PLUGIN_FINISH_DECL, test, NULL);
     return 0;
 }
