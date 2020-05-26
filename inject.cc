@@ -105,16 +105,6 @@ static struct plugin_info callgraph_plugin_info = {
     .help       = "callgraph plugin\n",
 };
 
-static tree callback_op(tree *t, int *, void *data) {
-    return NULL;
-}
-
-
-static tree callback_stmt(gimple_stmt_iterator *gsi,
-                    bool *handled_all_ops,  struct walk_stmt_info *wi) {
-
-}
-
 
 static unsigned int check() {
 
@@ -397,7 +387,7 @@ gimple_seq push_stack() {
     g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
+//    gimple_seq_add_stmt(&seq, g);
 
     return seq;
 }
@@ -409,65 +399,63 @@ gimple_seq push_stack() {
  * len of message
  * out could be 1(stdout) or 2 (stderr)
  * */
-gimple_seq print_str2(tree str, tree len, tree fd) {
+gimple_seq print_str2(tree str, tree len, tree _fd) {
     gimple g;
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
     tree len_info, fd_info;
+    vec<tree, va_gc> *vec_input = NULL;
     vec<tree, va_gc> *vec_fd = NULL;
+    vec<tree, va_gc> *vec_clobber = NULL;
     vec<tree, va_gc> *vec_msg = NULL;
     vec<tree, va_gc> *vec_msg_len = NULL;
 
-    fd_info = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
-    fd_info = chainon(NULL_TREE, build_tree_list(fd_info, fd));
-    vec_safe_push(vec_fd, fd_info);
+    /* rax syscall */
+    tree syscall_nr = build_int_cst(long_unsigned_type_node, 1);
+    tree syscall = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
+    syscall = chainon(NULL_TREE, build_tree_list(syscall, syscall_nr));
+    vec_safe_push(vec_input, syscall);
 
-    len_info = build_tree_list(NULL_TREE, build_const_char_string(2, "r"));
+    /* edi stdout/stderr */
+    tree fd_nr = build_int_cst(long_unsigned_type_node, 1);
+    tree fd = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
+    fd = chainon(NULL_TREE, build_tree_list(fd, fd_nr));
+    vec_safe_push(vec_input, fd);
+
+
+    /* edx length */
+    len_info = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
     len_info = chainon(NULL_TREE, build_tree_list(len_info, len));
-    vec_safe_push(vec_msg_len, len_info);
+    vec_safe_push(vec_input, len_info);
 
-    tree out_buf = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
-    out_buf = chainon(NULL_TREE, build_tree_list(out_buf, str));
-    vec_safe_push(vec_msg, out_buf);
-    // KKK
+    /* rsi addr */
+    tree msg_info = build_tree_list(NULL_TREE, build_const_char_string(3, "rm"));
+    msg_info = chainon(NULL_TREE, build_tree_list(msg_info, str));
+    vec_safe_push(vec_input, msg_info);
+
+    /* clobber */
+    tree clobber = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
+    vec_safe_push(vec_clobber, clobber);
+    clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "edi"));
+    vec_safe_push(vec_clobber, clobber);
+    clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "edx"));
+    vec_safe_push(vec_clobber, clobber);
+    clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rsi"));
+    vec_safe_push(vec_clobber, clobber);
+    clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rax"));
+    vec_safe_push(vec_clobber, clobber);
 
 
 
-    g = gimple_build_asm_vec("movq %0, %%rsi", vec_msg, NULL, NULL, NULL);
+    g = gimple_build_asm_vec("movq %0, %%rax\n\tmovq %1, %%rdi\n\tmovq %2,%%rdx\n\tmovq %3,%%rsi\n\tsyscall\n\t", vec_input, NULL, vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("movq %0, %%rdx", vec_msg_len, NULL, NULL, NULL);
-    //g = gimple_build_asm_vec("mov $5, %%edx", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-    //g = gimple_build_asm_vec("mov $1, %%rdi", NULL, NULL, NULL, NULL);
-    //g = gimple_build_asm_vec("movq %0, %%rdi", vec_fd, NULL, NULL, NULL);
-    //g = gimple_build_asm_vec("movq $1, %%eax", NULL, NULL, NULL, NULL);
-    //asm_or_stmt = as_a_gasm(g);
-    //gimple_asm_set_volatile(asm_or_stmt, true);
-    //gimple_seq_add_stmt(&seq, g);
-
-    /* set output and syscall number */
-    g = gimple_build_asm_vec("mov $1, %%rax", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
-
-    g = gimple_build_asm_vec("mov %%rax, %%rdi", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
+//    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+//    asm_or_stmt = as_a_gasm(g);
+//    gimple_asm_set_volatile(asm_or_stmt, true);
 //    gimple_seq_add_stmt(&seq, g);
-
-
-
-    g = gimple_build_asm_vec("syscall", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
     
 
     return seq;
@@ -693,6 +681,29 @@ static tree add_local(char *name, char *decl_init) {
     return decl;
 }
 
+static tree callback_op(tree *t, int *, void *data) {
+    return NULL;
+}
+
+
+static tree callback_stmt(gimple_stmt_iterator *gsi,
+              bool *handled_all_ops,  struct walk_stmt_info *wi) {
+    gimple g = gsi_stmt(*gsi);
+    fprintf(stderr, "asdfdsa;fj;");
+    print_gimple_stmt(stderr, g,0,0);
+}
+
+/*
+static tree callback_op(tree *t, int *, void *data) {
+    return NULL;
+}
+
+
+static tree callback_stmt(gimple_stmt_iterator *gsi,
+                    bool *handled_all_ops,  struct walk_stmt_info *wi) {
+
+}
+*/
 
 
 void instrument_calls() {
@@ -714,17 +725,14 @@ void instrument_calls() {
 
     tree dec_node;
 
+
     vec<tree, va_gc> *vec_fence = NULL;
     tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
     vec_safe_push(vec_fence, fence);
 
 
-    FOR_EACH_BB_FN (bb, cfun) {
-
-//        asprintf(&info, "CALL:%s:ADDR:", \
-//                        IDENTIFIER_POINTER(DECL_NAME(cfun->decl)));
-        asprintf(&info, "CALL:%s:ADDR:", "0x0000000000000000000000000\n");
-
+        asprintf(&info, "CALL:%s:ADDR:\n", current_function_name());
+        info[strlen(info)-1] = '\0';
 
         tree buf_len = build_int_cst(long_unsigned_type_node, strlen(info) + 1);
         tree fd = build_int_cst(long_unsigned_type_node, 1);
@@ -740,7 +748,15 @@ void instrument_calls() {
         gsi = gsi_start_bb(on_entry);
         gsi_insert_seq_before(&gsi, assign, GSI_NEW_STMT);
 
+        free(info);
+        gimple_seq gimple_body = cfun->gimple_body;
 
+
+    FOR_EACH_BB_FN (bb, cfun) {
+
+//        asprintf(&info, "CALL:%s:ADDR:", \
+//                        IDENTIFIER_POINTER(DECL_NAME(cfun->decl)));
+//         for (gsi = gsi_start (gimple_body); !gsi_end_p (gsi); ){
         for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
             stmt = gsi_stmt(gsi);
 
@@ -751,7 +767,7 @@ void instrument_calls() {
     g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
+    //gimple_seq_add_stmt(&seq, g);
 
 
                 sseq = push_stack();
@@ -779,56 +795,19 @@ void instrument_calls() {
                 gimple_seq_add_seq(&seq, sseq);
 
 
-
-
-
-                //fprintf(stderr, "## instrument_calls\n");
-                //print_gimple_stmt(stderr, stmt,0,0);
-
-
-
-                //gimple_seq_add_seq(&seq, stmt);
-
-                //sseq = load_str(fun_name, 1);
-                //gimple_seq_add_seq(&seq, sseq);
-
-                //sseq = print_str(strlen(fun_name), 1);
-                //gimple_seq_add_seq(&seq, sseq);
-
-
-/*
-                vec_addr = NULL;
-	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
-	            tree output = build_tree_list(NULL_TREE, \
-                                        build_const_char_string(3, "r"));
-	            output = chainon(NULL_TREE, build_tree_list(output, callee));
-                vec_safe_push(vec_addr, output);
-                g = gimple_build_asm_vec("mov %0, %%rdi", vec_addr, \
-                                                NULL, NULL,  NULL);
-                asm_or_stmt = as_a_gasm(g);
-                gimple_asm_set_volatile(asm_or_stmt, true);
-                gimple_seq_add_stmt(&seq, g);
-                sseq = print_reg();
-                gimple_seq_add_seq(&seq, sseq);
-                sseq = load_str(tmp);
-                gimple_seq_add_seq(&seq, sseq);
-                sseq = print_str(strlen(tmp), 1);
-                gimple_seq_add_seq(&seq, sseq);
-*/
-
                 sseq = pop_stack();
                 gimple_seq_add_seq(&seq, sseq);
     g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
-    gimple_seq_add_stmt(&seq, g);
+//    gimple_seq_add_stmt(&seq, g);
 
                 gsi_insert_seq_before(&gsi, seq, GSI_SAME_STMT);
+                //gsi_insert_seq_after(&gsi, seq, GSI_CONTINUE_LINKING);
 
             }
         }
 
-        free(info);
     }
     free(tmp);
 }
