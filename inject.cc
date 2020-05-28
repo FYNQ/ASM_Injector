@@ -64,9 +64,6 @@ static tracer_rule_map rules;
 tree global_decls = NULL_TREE;
 
 
-
-#define PREF_SYM        "__ksymtab_"
-
 #define VAR_FUNCTION_OR_PARM_DECL_CHECK(NODE) \
       TREE_CHECK3(NODE,VAR_DECL,FUNCTION_DECL,PARM_DECL)
 
@@ -95,22 +92,41 @@ struct gcc_variable {
 typedef struct gcc_variable gcc_variable;
 
 
-
-
-#define NO_FILE  "no_file"
-
-
 static struct plugin_info callgraph_plugin_info = {
     .version    = "2020121",
     .help       = "callgraph plugin\n",
 };
 
 
-static unsigned int check() {
+typedef char *char_p;
 
+
+static tree gvar_tracer;
+
+static void init_tracer_global() {
+    gvar_tracer = build_decl(UNKNOWN_LOCATION, VAR_DECL, NULL_TREE,\
+                                ptr_type_node);
+    DECL_NAME(gvar_tracer) = create_tmp_var_name("TRACER_GLOBAL");
+    DECL_ARTIFICIAL(gvar_tracer) = 1;
+    TREE_STATIC(gvar_tracer) = 1;
+    TREE_USED(gvar_tracer) = 1;
+    TREE_PUBLIC(gvar_tracer) = 0;
+    varpool_finalize_decl(gvar_tracer);
 }
 
-typedef char *char_p;
+static tree init_tracer_global2() {
+    tree gvar_tracer1;
+    gvar_tracer1 = build_decl(UNKNOWN_LOCATION, VAR_DECL, NULL_TREE,\
+                                ptr_type_node);
+    DECL_NAME(gvar_tracer1) = create_tmp_var_name("TRACER_GLOBAL");
+    DECL_ARTIFICIAL(gvar_tracer1) = 1;
+    TREE_STATIC(gvar_tracer1) = 1;
+    TREE_USED(gvar_tracer1) = 1;
+    TREE_PUBLIC(gvar_tracer1) = 0;
+    varpool_finalize_decl(gvar_tracer1);
+    return gvar_tracer1;
+}
+
 
 
 tree build_string_constant(const char* string, int isConst) {
@@ -132,7 +148,6 @@ tree build_string_constant(const char* string, int isConst) {
 static tree create_var(tree type, const char *name)
 {
     tree var;
-
     var = create_tmp_var(type, name);
     add_referenced_var(var);
     mark_sym_for_renaming(var);
@@ -140,8 +155,7 @@ static tree create_var(tree type, const char *name)
     return var;
 }
 
-static bool
-flag_instrument_functions_exclude_p (tree fndecl)
+static bool flag_instrument_functions_exclude_p (tree fndecl)
 {
   vec<char_p> *v;
 
@@ -170,9 +184,10 @@ flag_instrument_functions_exclude_p (tree fndecl)
     if (strstr (name, s) != NULL)
       return true;
     }
-
   return false;
 }
+
+
 
 
 gimple_seq pop_stack() {
@@ -181,8 +196,6 @@ gimple_seq pop_stack() {
     gimple g;
     tree clobber;
     vec<tree, va_gc> *vec_clobber = NULL;
-
-
 
     vec<tree, va_gc> *vec_fence = NULL;
     tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
@@ -205,7 +218,6 @@ gimple_seq pop_stack() {
     vec_safe_push(vec_clobber, clobber);
     clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rbx"));
     vec_safe_push(vec_clobber, clobber);
-
 
     g = gimple_build_asm_vec("pop %%rcx\n\tpop %%rax\n\tpop %%rdi\n\tpop %%rdx\n\tpop %%rsi\n\tpop %%rbx\n\t", NULL, NULL, vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
@@ -230,17 +242,11 @@ gimple_seq pop_stack() {
     clobber = build_tree_list(NULL_TREE, build_const_char_string(3, "r8"));
     vec_safe_push(vec_clobber, clobber);
 
-
     g = gimple_build_asm_vec("pop %%r15\n\tpop %%r14\n\tpop %%r13\n\tpop %%r12\n\tpop %%r11\n\tpop %%r10\n\tpop %%r9\n\tpop %%r8\n\t", NULL, NULL, vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-    g = gimple_build_asm_vec("sub $-0x1000,%%rsp", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
     return seq;
 }
 
@@ -251,26 +257,15 @@ gimple_seq push_stack() {
     gimple_seq seq = NULL;
     gimple g;
 
-
-    g = gimple_build_asm_vec("add $-0x1000,%%rsp", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
-
-
     g = gimple_build_asm_vec("push %%r8\n\tpush %%r9\n\tpush %%r10\n\tpush %%r11\n\tpush %%r12\n\tpush %%r13\n\tpush %%r14\n\tpush %%r15\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-
     g = gimple_build_asm_vec("push %%rbx\n\tpush %%rsi\n\tpush %%rdx\n\tpush %%rdi\n\tpush %%rax\n\tpush %%rcx\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
-
-
 
     vec<tree, va_gc> *vec_fence = NULL;
     tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
@@ -359,12 +354,6 @@ gimple_seq print_str2(tree str, tree len) {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
  
-//    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
-//    asm_or_stmt = as_a_gasm(g);
-//    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
-    
-
     return seq;
 }
 
@@ -411,8 +400,6 @@ gimple_seq print_reg() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-
     g = gimple_build_asm_vec("xor %%eax, %%eax", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
@@ -423,14 +410,12 @@ gimple_seq print_reg() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
  
-
     int i;
     for (i=0; i<16; i++) {
     g = gimple_build_asm_vec("rol $4,%%rdi\n\t", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
-
 
     g = gimple_build_asm_vec("mov %%dil,%%al\n\t", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
@@ -441,7 +426,6 @@ gimple_seq print_reg() {
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
-
 
     g = gimple_build_asm_vec("mov (%%rdx,%%rax, 1), %%al\n\t", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
@@ -458,12 +442,10 @@ gimple_seq print_reg() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
  
-
     g = gimple_build_asm_vec("dec %%ecx\n\t", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
-
 
     }
     // print to stdout
@@ -526,7 +508,6 @@ gimple_seq print_ret_addr() {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
     g = gimple_build_asm_vec("movq (%%rcx), %%rdi", NULL, NULL, NULL,  NULL);
     //g = gimple_build_asm_vec("movq $0xdeadbeefdeadbeef, %%rdi", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
@@ -581,22 +562,8 @@ static tree callback_op(tree *t, int *, void *data) {
 
 static tree callback_stmt(gimple_stmt_iterator *gsi,
               bool *handled_all_ops,  struct walk_stmt_info *wi) {
-    gimple g = gsi_stmt(*gsi);
-    fprintf(stderr, "asdfdsa;fj;");
-    print_gimple_stmt(stderr, g,0,0);
 }
 
-/*
-static tree callback_op(tree *t, int *, void *data) {
-    return NULL;
-}
-
-
-static tree callback_stmt(gimple_stmt_iterator *gsi,
-                    bool *handled_all_ops,  struct walk_stmt_info *wi) {
-
-}
-*/
 
 
 void instrument_calls() {
@@ -608,6 +575,7 @@ void instrument_calls() {
 
     asprintf(&info, "CALL:%s:ADDR:\n", current_function_name());
     tree len = build_int_cst(long_unsigned_type_node, strlen(info));
+
     /*  used later */
     tree fd = build_int_cst(long_unsigned_type_node, 1);
 
@@ -616,24 +584,24 @@ void instrument_calls() {
     decl = add_local("buf_glib_tracer", info);
     tree expr = build_fold_addr_expr(decl);
     fprintf(stderr, "\nexpr for call\n");
-//    debug_tree(expr);
+
     assign = gimple_build_assign(buf_ref, expr);
     on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
     gsi = gsi_start_bb(on_entry);
     gsi_insert_seq_before(&gsi, assign, GSI_NEW_STMT);
     free(info);
 
-
     tree charp_ptr_uint_fn_type = build_function_type_list(
         ptr_type_node, uint32_type_node, NULL_TREE);
 
     tree dc_decl = build_fn_decl("dump_call_info", charp_ptr_uint_fn_type);
-    gimple call;
     FOR_EACH_BB_FN (bb, cfun) {
         for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
             stmt = gsi_stmt(gsi);
 
             if (gimple_code (stmt) == GIMPLE_CALL) {
+                gimple call;
+                gimple_seq seq = NULL;
                 /*
                 vec_addr = NULL;
 	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
@@ -647,10 +615,27 @@ void instrument_calls() {
                 gimple_asm_set_volatile(asm_or_stmt, true);
                 //gimple_seq_add_stmt(&seq, g);
                 */
-                tree lhs;
                 call = gimple_build_call(dc_decl, 2, expr, len);
-                gsi_insert_after(&gsi, call, GSI_CONTINUE_LINKING);
+                gimple_call_set_lhs(call, DECL_RESULT(dc_decl));
+
+                fprintf(stderr, "##------------------------------- \n");
+                fprintf(stderr, "## ");
+                print_gimple_stmt(stderr, call, 0,0);
+
+                gimple_seq_add_stmt(&seq, call);
+                //DECL_RESULT(dc_decl) = gvar_tracer;                
+                fprintf(stderr, "## ");
+                gsi_insert_before(&gsi, call, GSI_SAME_STMT);
             }
+        }
+    }
+
+    FOR_EACH_BB_FN (bb, cfun) {
+        for (gsi = gsi_start_bb(bb); !gsi_end_p(gsi); gsi_next(&gsi)) {
+            stmt = gsi_stmt(gsi);
+
+//            fprintf(stderr, "## ");
+//            print_gimple_stmt(stderr, stmt, 0,0);
         }
     }
 }
@@ -663,12 +648,7 @@ void instrument_entry(){
     gimple_seq seq = NULL;
     expanded_location xloc;
     //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
-    char *sep;
     char *info;
-    char *arrow;
-    asprintf(&arrow, "---->");
-    asprintf(&sep, ":");
-
 
     //if (rs == NULL) {
     //    return 0;
@@ -715,34 +695,9 @@ void instrument_entry(){
         //debug_tree(DECL_ARGUMENTS(current_function_decl));
         on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
         gsi = gsi_start_bb(on_entry);
-        //gsi_insert_before(&gsi, local_stmt, GSI_NEW_STMT);
         //print_gimple_stmt(stderr, local_stmt, 0,0);
 
-
-        /* Pop stack*/
-        seq = pop_stack();
-        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-        seq = print_str2(expr, buf_len); //, fd);
-        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-
-        //seq = print_ret_addr();
-        //gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-
-        //seq = print_str(strlen(fun_name), 2);
-        //gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-        //seq = load_str(fun_name, 1);
-        //gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-        /* Push stack*/
-        seq = push_stack();
-        gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
     }
-    
-    free(sep);
-    free(arrow);
 }
 
 static tree get_string_cst(tree var)
@@ -797,37 +752,25 @@ static void create_dump_fun() {
         number++;
     }
     fprintf(stderr, "\n------------------xxx--------------------\n");
-//    debug_tree(arg_str);
     on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
     gsi = gsi_start_bb(on_entry);
-//    debug_tree(arg_str_len);
-    const char *x = TREE_STRING_POINTER(TREE_VALUE(arg_str));
-    fprintf(stderr, "|||%s\n------------------xxx--------------------\n", x);
-    //debug_tree(get_string_cst(DECL_INITIAL(arg_str)));
-    fprintf(stderr, "\n------------------xxx--------------------\n");
-    debug_tree((arg_str_len));
-    tree str;
-//    debug_tree(str);
-
-
-    //debug_tree(DECL_INITIAL(arg_str));
-//    print_generic_decl (stderr, arg_str, TDF_DETAILS);
-    print_generic_expr(stderr, arg_str, TDF_VOPS|TDF_MEMSYMS|TDF_UID);
+    //print_generic_expr(stderr, arg_str, TDF_VOPS|TDF_MEMSYMS|TDF_UID);
     seq = print_str2((arg_str), (arg_str_len));
-    gsi_insert_seq_before(&gsi, seq, GSI_SAME_STMT);
+    gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
     return;
 }
 
 static unsigned int callgraph_execute(){
-    fprintf(stderr, "-------%s\n", current_function_name());
     if (strncmp("dump_call_info", current_function_name(), \
                             strlen("dump_call_info")) == 0) {
+    /* init global variable, used to save return value of dump function */
+        init_tracer_global();
+
         create_dump_fun();
         return 0;
     }
-
-//    instrument_entry();
+///    instrument_entry();
     instrument_calls();
     tree param;
     for (param = DECL_ARGUMENTS(current_function_decl); \
@@ -841,20 +784,22 @@ static unsigned int callgraph_execute(){
 }
 
 
-#define PREF_SYM        "__ksymtab_"
 
 
 static void start_unit(void *event_data, void *user_data){
-    // XXX
-//    tree ptr_char_str = build_pointer_type(TREE_TYPE(build_string_constant((const char*) "abcd efgh", false)));
-
     fprintf(stderr, "******************* START UNIT *******************\n");
-    tree main_type = build_function_type_list (uint32_type_node,ptr_type_node, 
+
+    tree main_type = build_function_type_list (integer_type_node, ptr_type_node, 
                                                 uint32_type_node, NULL_TREE);
+
     /* Function with no source location, named "main" and of the above type. */
     tree main_decl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
                                    get_identifier ("dump_call_info"), main_type);
 
+
+    tree used_attr = tree_cons(get_identifier("used"), NULL, NULL);
+	decl_attributes(&main_decl, used_attr, 0);
+    /* We pass a pointer to the string and its length */
     tree param_decl = NULL_TREE;
     tree str = build_decl(UNKNOWN_LOCATION, PARM_DECL,\
                         get_identifier("str"), ptr_type_node);
@@ -862,18 +807,15 @@ static void start_unit(void *event_data, void *user_data){
     DECL_ARG_TYPE(str) = ptr_type_node;
     param_decl = chainon(param_decl, str);
 
-
     tree str_len = build_decl(UNKNOWN_LOCATION, PARM_DECL,\
                         get_identifier("len"), uint32_type_node);
 
     DECL_ARG_TYPE(str_len) = uint32_type_node;
     param_decl = chainon(param_decl, str_len);
 
-
-    // parameter types
+    /* parameter types */
     tree params = NULL_TREE;
     chainon(params, tree_cons (NULL_TREE, TREE_TYPE(str), NULL_TREE));
-
 
     /* File scope. */
     DECL_CONTEXT (main_decl) = NULL_TREE;
@@ -888,7 +830,7 @@ static void start_unit(void *event_data, void *user_data){
     /* Return value for main (). */
     /* Result variable with no name and same type as main () returns. */
     tree main_ret = build_decl (BUILTINS_LOCATION, RESULT_DECL, NULL_TREE,
-                                  TREE_TYPE (main_type));
+                                  integer_type_node);
     /* Scoped within the main function. */
     DECL_CONTEXT (main_ret) = main_decl;
     /* Generated by the compiler. */
@@ -911,12 +853,6 @@ static void start_unit(void *event_data, void *user_data){
     TREE_CHAIN( intArray ) = decls;
     decls = intArray;
 
-    tree variable_pk = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier("pk"), build_pointer_type(integer_type_node));
-    TREE_ADDRESSABLE(variable_pk) = true;
-    TREE_USED(variable_pk) = true;
-
-    TREE_CHAIN( variable_pk ) = decls;
-    decls = variable_pk;
 
     tree variable_pi = build_decl (UNKNOWN_LOCATION, VAR_DECL, \
             get_identifier("pi"), build_pointer_type(integer_type_node));
@@ -925,7 +861,6 @@ static void start_unit(void *event_data, void *user_data){
 
     TREE_CHAIN( variable_pi ) = decls;
     decls = variable_pi;
-
 
     tree variable_i = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier("i"),   integer_type_node);
     TREE_ADDRESSABLE(variable_i) = true;
@@ -938,8 +873,8 @@ static void start_unit(void *event_data, void *user_data){
     DECL_INITIAL(variable_pi) = build1(ADDR_EXPR,\
             build_pointer_type(TREE_TYPE(variable_i)), variable_i);
   /* Block to represent the scope of local variables. */
-  //tree bl = build_block (NULL_TREE, NULL_TREE, main_decl, NULL_TREE);
-    tree bl = build_block (decls, NULL_TREE, main_decl, NULL_TREE);
+  tree bl = build_block (NULL_TREE, NULL_TREE, main_decl, NULL_TREE);
+//    tree bl = build_block (decls, NULL_TREE, main_decl, NULL_TREE);
     DECL_INITIAL (main_decl) = bl;
     TREE_USED (bl) = true;
 
@@ -956,17 +891,11 @@ static void start_unit(void *event_data, void *user_data){
     append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_i),\
                                     &main_stmts);
 
-
-
     append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_pi),\
                                     &main_stmts);
 
-
-
     append_to_statement_list(build1(DECL_EXPR, void_type_node, intArray),\
                                     &main_stmts);
-
-
 
     /* Build the puts () function declaration. */
     /* Function type which returns int with unspecified parameters. */
@@ -995,9 +924,6 @@ static void start_unit(void *event_data, void *user_data){
     tree main_ret_expr = build1 (RETURN_EXPR, void_type_node, main_set_ret);
     append_to_statement_list (main_ret_expr, &main_stmts);
 
-
-
-
     /* Make the bind contain the statements. */
     BIND_EXPR_BODY (bind) = main_stmts;
     /* Set main to use the statements in bind. */
@@ -1012,25 +938,6 @@ static void start_unit(void *event_data, void *user_data){
         cgraph_node::finalize_function(t, false);
     }
 }
-
-static void test(void *event_data, void *user_data){
-    tree node;
-    node = (tree)event_data;
-    const char *name;
-    if (TREE_CODE(node) != PARM_DECL && !DECL_EXTERNAL(node)) {
-        if (DECL_NAME (node)) {
-
-            /* consider only project files no compiler includes
-             * -> It is just a fix, I do not know the proper way atm */
-            int ret = strncmp("/usr", DECL_SOURCE_FILE(node), strlen("/usr"));
-            if (ret == 0)
-                return;
-            name = IDENTIFIER_POINTER(DECL_NAME(node));
-        }
-    }
-}
-
-
 
 
 #define PASS_NAME callgraph
@@ -1076,14 +983,14 @@ int plugin_init (struct plugin_name_args *plugin_info,
     fclose(rfl);
 
     PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_AFTER);
-//    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_BEFORE);
+//    PASS_INFO(callgraph, "tsan0", 1, PASS_POS_INSERT_BEFORE);
     // Register the phase right after omplower
     struct register_pass_info pass_info;
 
     register_callback(plugin_name, PLUGIN_INFO, NULL, &callgraph_plugin_info);
     register_callback (plugin_name, PLUGIN_PASS_MANAGER_SETUP, NULL, &callgraph_pass_info);
+//    register_callback(plugin_name, PLUGIN_EARLY_GIMPLE_PASSES_END, start_unit, NULL);
     register_callback(plugin_name, PLUGIN_START_UNIT, start_unit, NULL);
-    register_callback(plugin_name, PLUGIN_FINISH_DECL, test, NULL);
     return 0;
 }
 
