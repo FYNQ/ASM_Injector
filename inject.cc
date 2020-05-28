@@ -348,8 +348,8 @@ gimple_seq print_str2(tree str, tree len) {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
  
-
-    g = gimple_build_asm_vec("movq %0, %%rax\n\tmovq %1, %%rdi\n\tmovq %2,%%rdx\n\tmovq %3,%%rsi\n\tsyscall\n\t", vec_input, NULL, vec_clobber, NULL);
+    /* for length we use edx because length is unsigned int */
+    g = gimple_build_asm_vec("movq %0, %%rax\n\tmovq %1, %%rdi\n\tmov %2,%%edx\n\tmovq %3,%%rsi\n\tsyscall\n\t", vec_input, NULL, vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
@@ -538,21 +538,7 @@ gimple_seq print_ret_addr() {
     //XXX
     return seq;
 }
-static tree jpanic;
-static void init_jpanic_global(void)
-{
-    if (jpanic == NULL_TREE)
-    {
-        jpanic = build_decl(BUILTINS_LOCATION, VAR_DECL, NULL, integer_type_node);
-        jpanic = make_ssa_name(jpanic, gimple_build_nop());
-        DECL_NAME(jpanic) = create_tmp_var_name("__el_jpanic");
-        TREE_STATIC(jpanic) = 1;
-        DECL_ARTIFICIAL(jpanic) = 1;
-        DECL_REGISTER(jpanic) = 1;
-    }
-}
 
-static tree intArray; 
 
 
 static tree add_local(char *name, char *decl_init) {
@@ -614,35 +600,23 @@ static tree callback_stmt(gimple_stmt_iterator *gsi,
 
 
 void instrument_calls() {
-    basic_block bb;
+    basic_block bb, on_entry;
     gimple_stmt_iterator gsi;
-    gimple_seq sseq = NULL;
-    gimple_seq seq = NULL;
-    gimple g, local_stmt;
-    gasm *asm_or_stmt;       
     gimple stmt;
-    char *fun_name;
+    gassign *assign;
     char *info;
-    char out_buffer[128];
-    char *tmp;
-    vec<tree, va_gc> *vec_addr = NULL;
-
-    asprintf(&tmp, "\n");
-    basic_block on_entry;
-
-    tree dec_node;
 
     asprintf(&info, "CALL:%s:ADDR:\n", current_function_name());
-
     tree len = build_int_cst(long_unsigned_type_node, strlen(info));
+    /*  used later */
     tree fd = build_int_cst(long_unsigned_type_node, 1);
 
     tree decl = NULL_TREE;
     tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer");
     decl = add_local("buf_glib_tracer", info);
-    gassign *assign;
     tree expr = build_fold_addr_expr(decl);
-    debug_tree(expr);
+    fprintf(stderr, "\nexpr for call\n");
+//    debug_tree(expr);
     assign = gimple_build_assign(buf_ref, expr);
     on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
     gsi = gsi_start_bb(on_entry);
@@ -660,7 +634,6 @@ void instrument_calls() {
             stmt = gsi_stmt(gsi);
 
             if (gimple_code (stmt) == GIMPLE_CALL) {
-                seq = NULL;
                 /*
                 vec_addr = NULL;
 	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
@@ -677,11 +650,9 @@ void instrument_calls() {
                 tree lhs;
                 call = gimple_build_call(dc_decl, 2, expr, len);
                 gsi_insert_after(&gsi, call, GSI_CONTINUE_LINKING);
-        //        gsi_next(&gsi);
             }
         }
     }
-    free(tmp);
 }
 
 
@@ -697,14 +668,6 @@ void instrument_entry(){
     char *arrow;
     asprintf(&arrow, "---->");
     asprintf(&sep, ":");
-
-    static bool initted;
-
-    if (!initted)
-    {
-        init_jpanic_global();
-        initted = true;
-    }
 
 
     //if (rs == NULL) {
@@ -780,7 +743,6 @@ void instrument_entry(){
     
     free(sep);
     free(arrow);
-    //free(fun_name);
 }
 
 static tree get_string_cst(tree var)
@@ -843,7 +805,7 @@ static void create_dump_fun() {
     fprintf(stderr, "|||%s\n------------------xxx--------------------\n", x);
     //debug_tree(get_string_cst(DECL_INITIAL(arg_str)));
     fprintf(stderr, "\n------------------xxx--------------------\n");
-//    debug_tree(DECL_INITIAL(arg_str));
+    debug_tree((arg_str_len));
     tree str;
 //    debug_tree(str);
 
@@ -851,7 +813,7 @@ static void create_dump_fun() {
     //debug_tree(DECL_INITIAL(arg_str));
 //    print_generic_decl (stderr, arg_str, TDF_DETAILS);
     print_generic_expr(stderr, arg_str, TDF_VOPS|TDF_MEMSYMS|TDF_UID);
-//    seq = print_str2(TREE_VALUE(arg_str), (arg_str_len));
+    seq = print_str2((arg_str), (arg_str_len));
     gsi_insert_seq_before(&gsi, seq, GSI_SAME_STMT);
 
     return;
@@ -884,35 +846,33 @@ static unsigned int callgraph_execute(){
 
 static void start_unit(void *event_data, void *user_data){
     // XXX
-    tree ptr_char_str = build_pointer_type(TREE_TYPE(build_string_constant((const char*) "abcd efgh", false)));
+//    tree ptr_char_str = build_pointer_type(TREE_TYPE(build_string_constant((const char*) "abcd efgh", false)));
 
     fprintf(stderr, "******************* START UNIT *******************\n");
-    tree main_type = build_function_type_list (unsigned_char_type_node,
-                                                NULL_TREE);
+    tree main_type = build_function_type_list (uint32_type_node,ptr_type_node, 
+                                                uint32_type_node, NULL_TREE);
     /* Function with no source location, named "main" and of the above type. */
     tree main_decl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
                                    get_identifier ("dump_call_info"), main_type);
 
     tree param_decl = NULL_TREE;
     tree str = build_decl(UNKNOWN_LOCATION, PARM_DECL,\
-                        get_identifier("str"), ptr_char_str);
+                        get_identifier("str"), ptr_type_node);
 
-    DECL_ARG_TYPE(str) = unsigned_char_type_node;
+    DECL_ARG_TYPE(str) = ptr_type_node;
     param_decl = chainon(param_decl, str);
 
 
     tree str_len = build_decl(UNKNOWN_LOCATION, PARM_DECL,\
-                        get_identifier("len"), unsigned_char_type_node);
+                        get_identifier("len"), uint32_type_node);
 
-    DECL_ARG_TYPE(str_len) = unsigned_char_type_node;
+    DECL_ARG_TYPE(str_len) = uint32_type_node;
     param_decl = chainon(param_decl, str_len);
 
 
     // parameter types
     tree params = NULL_TREE;
     chainon(params, tree_cons (NULL_TREE, TREE_TYPE(str), NULL_TREE));
-
-
 
 
     /* File scope. */
