@@ -26,7 +26,7 @@ OBJECTS=$(patsubst %.cc,%.o,$(SOURCES))
 all: $(PLUGIN)
 
 $(PLUGIN): $(OBJECTS)
-	$(CXX) $(LDFLAGS) -o $@ -shared $+ $(LDADD) -ljson-c -liberty -lyaml
+	$(CXX) $(LDFLAGS) -o $@ -shared $+ $(LDADD) -liberty -lyaml
 
 
 %.o: %.cc
@@ -46,9 +46,9 @@ clean:
 
 .PHONY: test
 test: $(PLUGIN)
-	$(CCPLUGIN) -fplugin-arg-inject-rules=rules.yml -lpthread -lyaml -O0 test_plugin.c -g -o test_plugin
+	$(CCPLUGIN) -fplugin-arg-inject-rules=rules.yml -fdump-tree-gimple-raw -lpthread -lyaml -O2 test_plugin.c -g -o test_plugin
 
 
 .PHONY: asm
 asm: $(PLUGIN)
-	$(CCPLUGIN) -fplugin-arg-inject-rules=rules.yml -lpthread -lyaml -O0 test_plugin.c -g -v -S -o test_plugin.s
+	$(CCPLUGIN) -fplugin-arg-inject-rules=rules.yml -lpthread -lyaml -O2 test_plugin.c -g -v -S -o test_plugin.s
