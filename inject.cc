@@ -235,24 +235,22 @@ gimple_seq pop_stack() {
     tree clobber;
     vec<tree, va_gc> *vec_clobber = NULL;
 
-
-
     vec<tree, va_gc> *vec_fence = NULL;
     tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
     vec_safe_push(vec_fence, fence);
 
-    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL); 
-    asm_or_stmt = as_a_gasm(g); 
-    gimple_asm_set_volatile(asm_or_stmt, true); 
-//    gimple_seq_add_stmt(&seq, g); 
+    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+//    gimple_seq_add_stmt(&seq, g);
  
  
-    g = gimple_build_asm_vec("pop %%rcx\n\tpop %%rax\n\tpop %%rdi\n\tpop            %%rdx\n\tpop %%rsi\n\tpop %%rbx\n\t", NULL, NULL, vec_clobber, NULL); 
-    asm_or_stmt = as_a_gasm(g); 
-    gimple_asm_set_volatile(asm_or_stmt, true); 
-    gimple_seq_add_stmt(&seq, g); 
+    g = gimple_build_asm_vec("pop %%rcx\n\tpop %%rax\n\tpop %%rdi\n\tpop %%rdx\n\tpop %%rsi\n\tpop %%rbx\n\t", NULL, NULL, vec_clobber, NULL);
+    asm_or_stmt = as_a_gasm(g);
+    gimple_asm_set_volatile(asm_or_stmt, true);
+    gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("pop %%r15\n\tpop %%r14\n\tpop %%r13\n\tpop            %%r12\n\tpop %%r11\n\tpop %%r10\n\tpop %%r9\n\tpop %%r8\n\t", NULL, NULL,           vec_clobber, NULL);
+    g = gimple_build_asm_vec("pop %%r15\n\tpop %%r14\n\tpop %%r13\n\tpop %%r12\n\tpop %%r11\n\tpop %%r10\n\tpop %%r9\n\tpop %%r8\n\t", NULL, NULL,           vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
@@ -607,7 +605,7 @@ void instrument_calls() {
                 gimple call;
                 gimple_seq seq = NULL;
 	            tree callee = gimple_call_fn(as_a <gcall *>(stmt));
-                
+
                 call = gimple_build_call(dc_decl, 3, expr, len, callee);
                 gimple_call_set_lhs(call, DECL_RESULT(dc_decl));
 
@@ -630,7 +628,7 @@ void instrument_entry(){
     char *fun_info, *addr_buf;
     tree fun_info_decl, buf_decl;
     tree fun_info_expr, buf_expr;
-    vec<tree, va_gc> *vec_rbp_buf = NULL;   
+    vec<tree, va_gc> *vec_rbp_buf = NULL; 
 
     //if (rs == NULL) {
     //    return 0;
@@ -679,7 +677,7 @@ void instrument_entry(){
                                 ptr_type_node, uint32_type_node, NULL_TREE);
 
         tree dc_decl = build_fn_decl("dump_call_info", charp_ptr_uint_fn_type);
-       
+
 
         /* buffer to store entry address */
         tree tlbuf = build_tree_list(NULL_TREE, 
@@ -708,10 +706,10 @@ void instrument_entry(){
         asm_or_stmt = as_a_gasm(g);
         gimple_asm_set_volatile(asm_or_stmt, true);
         gimple_seq_add_stmt(&seq, g);
-        
+
          gsi_insert_seq_before(&gsi, seq, GSI_SAME_STMT);
 
-        //DECL_RESULT(dc_decl) = gvar_tracer;                
+        //DECL_RESULT(dc_decl) = gvar_tracer;
         //gsi_insert_before(&gsi, call, GSI_SAME_STMT);
         //print_gimple_stmt(stderr, local_stmt, 0,0);
     }
@@ -743,13 +741,13 @@ static void create_dump_fun() {
     seq = pop_stack();
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
-   
+
     seq = print_addr(addr);
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
     seq = push_stack();
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
- 
+
     seq = print_str2(arg_str, arg_str_len);
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
@@ -782,7 +780,7 @@ static void start_unit(void *event_data, void *user_data){
     fprintf(stderr, "******************* START UNIT *******************\n");
 
     tree main_type = build_function_type_list (integer_type_node, ptr_type_node, 
-                                                uint32_type_node, 
+                                                uint32_type_node,
                                                 long_long_unsigned_type_node,
                                                 NULL_TREE);
 
