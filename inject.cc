@@ -599,7 +599,7 @@ void instrument_exit(){
     //    return 0;
     //}
 
-    fprintf(stderr, "## instrument_entry\n");
+    fprintf(stderr, "## instrument_exit\n");
 
     /* We do not instrument or inlined functions */
     if (!(DECL_DECLARED_INLINE_P (cfun->decl))
@@ -666,8 +666,10 @@ void instrument_exit(){
             gimple_seq_add_stmt(&seq, g);
 
             call = gimple_build_call(dc_decl, 3, fun_info_expr, len, addr_var);
-            gimple_set_location(g, loc);
-            gsi_insert_before(&gsi, call, GSI_SAME_STMT);
+            //gimple_set_location(g, loc);
+            //gsi_insert_before(&gsi, call, GSI_SAME_STMT);
+            gimple_seq_add_stmt(&seq, call);
+            gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
         }
     }
 }
@@ -802,7 +804,7 @@ static unsigned int callgraph_execute(){
         return 0;
     }
     instrument_entry();
-//instrument_calls();
+   //instrument_calls();
     instrument_exit();
     return 0;
 }
