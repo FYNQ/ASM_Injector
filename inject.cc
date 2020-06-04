@@ -611,7 +611,7 @@ void instrument_exit(){
         gassign *assign;
         tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer3");
         /* Variable decl fun_expr contains function name string */
-        asprintf(&fun_info, "\nEXIT:%s:ADDR:", current_function_name());
+        asprintf(&fun_info, ":EXIT:%s\n", current_function_name());
         fun_info_decl = add_local("exit_buf_gt", fun_info);
         fun_info_expr = build_fold_addr_expr(fun_info_decl);
         assign = gimple_build_assign(buf_ref, fun_info_expr);
@@ -642,13 +642,7 @@ void instrument_exit(){
 
             loc = gimple_location(stmt);
 
-            /* Get RIP */
-            g = gimple_build_asm_vec("lea (%%rip), %%rcx\n\t", NULL,
-                                            NULL, NULL,  NULL);
-            asm_or_stmt = as_a_gasm(g);
-            gimple_asm_set_volatile(asm_or_stmt, true);
-            gimple_seq_add_stmt(&seq, g);
-
+ 
 	        tree addr_var = create_tmp_var(long_long_unsigned_type_node,
                                             "addr_rbp");
 	        add_referenced_var(addr_var);
@@ -658,12 +652,20 @@ void instrument_exit(){
             vec<tree, va_gc> *outputs = NULL;
             vec_safe_push(outputs, output);
 
+           /* Get RIP and save buffer */
+            g = gimple_build_asm_vec("lea (%%rip), %0\n\t", NULL,
+                                            outputs, NULL,  NULL);
+            asm_or_stmt = as_a_gasm(g);
+            gimple_asm_set_volatile(asm_or_stmt, true);
+            gimple_seq_add_stmt(&seq, g);
+
+
             /*save to buffer */
             g = gimple_build_asm_vec("movq %%rcx, %0\n\t", NULL, outputs,
                                     NULL,  NULL);
             asm_or_stmt = as_a_gasm(g);
             gimple_asm_set_volatile(asm_or_stmt, true);
-            gimple_seq_add_stmt(&seq, g);
+//            gimple_seq_add_stmt(&seq, g);
 
             call = gimple_build_call(dc_decl, 3, fun_info_expr, len, addr_var);
             //gimple_set_location(g, loc);
@@ -704,7 +706,7 @@ void instrument_entry(){
         gassign *assign;
         tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer2");
         /* Variable decl fun_expr contains function name string */
-        asprintf(&fun_info, "\nENTRY:%s:ADDR:", current_function_name());
+        asprintf(&fun_info, ":ENTRY:%s:\n", current_function_name());
         fun_info_decl = add_local("entry_buf_gt", fun_info);
         fun_info_expr = build_fold_addr_expr(fun_info_decl);
         assign = gimple_build_assign(buf_ref, fun_info_expr);
@@ -775,6 +777,11 @@ static void create_dump_fun() {
     on_entry = single_succ(ENTRY_BLOCK_PTR_FOR_FN(cfun));
     gsi = gsi_start_bb(on_entry);
 
+    seq = print_str2(arg_str, arg_str_len);
+    gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
+
+
+
     seq = pop_stack();
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
@@ -782,9 +789,6 @@ static void create_dump_fun() {
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
     seq = push_stack();
-    gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
-
-    seq = print_str2(arg_str, arg_str_len);
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
 
