@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-int foo(char *str) { 
-    return 2;
+int foo(char *str) {
+     return 2;
 }
 
 int bar() {

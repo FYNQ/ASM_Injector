@@ -13,7 +13,7 @@ gcc \
   -ggdb \
   -o test_glibc \
   -v \
-  -O0 \
+  -O3 \
   test_glibc.c \
   -pthread \
 ;
