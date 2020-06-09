@@ -1,0 +1,9 @@
+## gprof
+
+It seems that gprof [1] relies on the gcc instrumentation flag -pg
+which is not usable without "hacking" the glibc makefile.
+
+[1] http://www.math.utah.edu/docs/info/gprof_toc.html
+[2] http://www.math.utah.edu/docs/info/gprof_2.html#SEC2
+[3] https://sourceware.org/binutils/docs-2.32/gprof/
+[4] https://stackoverflow.com/questions/375913/how-can-i-profile-c-code-running-on-linux
