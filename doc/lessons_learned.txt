@@ -61,6 +61,7 @@ Examples:
 4. https://github.com/danielneis/gcc-neis-frontend/blob/master/neis.tab.c
 5. https://blog.adacore.com/bindings-gcc-plugins
 6. linux kernel scripts/gcc-plugins/
+7. https://cpjsmith.uk/gccfe
 
 - The available technologies cover user-space applications
   quite well but not glibc it self
