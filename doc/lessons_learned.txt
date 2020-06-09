@@ -1,0 +1,90 @@
+Author: Nicholas Mc Guire
+Review: ---
+Date: June 9, 2020
+Expires: ---
+Keywords: glibc tracer, technology assessment, PoC
+Status: final (unreviewed) draft
+Phase: maintenance
+Ref: ISO 9001
+QA: QM-review at commit only
+Tracking: GIT
+Format: ascii text
+
+Introduction:
+ Summary of overall findings from the glibc tracer technology analysis
+ and the ensuing glibc tracer PoC.
+
+GLIBC Makefile:
+- passing custom linker flags via environment variables not everything
+  works as expected [1]
+- uses the -Wframe-address flag makes the use of __builtin_return_address
+  impossible.
+
+GCC:
+- the use optimization flags -O0 or -O{2,3} have implications
+  * no use usage rbp -> makes it hard(er) to unwind the stack
+  * gcc plugin is made to work with -O{2,3}, segfaults on -O0
+- inline extended ASM, won't work in situations were we depend that
+  the compiler catches changes in register and does not reload affected
+  register again. In other words, the register has been used and changed
+  its value and the compiler missed to reload the register, supposing
+  the register never has been changed.
+
+GCC-Plugins:
+- Extensive documentation but no problem solving inspiration.
+- very few resources in the web about GCC-plugins and less resources about
+  modifying code.
+- Some information is outdated due to the fact that gcc plugins got more stable
+  with version 4.9
+- Mostly learning from examples and GCC sources.
+
+Code injection:
+- When [1] is resolved C code (only libgcc C functions) can be used, at
+  the moment only ASM code can be injected.
+- Keep injected code in its on function body to avoid side effects of ASM code
+  to existing code (see GCC inline extended ASM)
+
+
+Doc:
+
+1. https://gcc.gnu.org/onlinedocs/gccint/
+2. https://jongy.github.io/2020/05/15/gcc-assert-introspect-2.html
+
+Examples:
+1. https://gitlab.fit.cvut.cz/pjp/gcc-samples
+2.
++https://github.com/euspectre/kedr-aux/blob/master/compile-time/src/kmodule-test.cp
++p
+3. https://github.com/hardenedlinux/grsecurity-101-tutorials/blob/master/grsec-
++code-analysis/kernexec_plugin.c
+
+4. https://github.com/danielneis/gcc-neis-frontend/blob/master/neis.tab.c
+5. https://blog.adacore.com/bindings-gcc-plugins
+6. linux kernel scripts/gcc-plugins/
+
+- The available technologies cover user-space applications
+  quite well but not glibc it self
+- It is surprising that the glibc folks managed to strive without
+  a tracer infrastructure to not only understand the inner
+  workings but also performance issues.
+- internals of gcc are mandatory to understand the resulting
+  traces - notably at what point what is available.
+- gcc plugin support is technically very complete but documentation
+  wise a lot of basics must be established by code review and
+  analysis of existing plugins.
+- A major effort was the analysis of the gcc passes and gaining
+  sufficient understanding of where what compile information is
+  available respectively at what pass one can insert the extractors
+  for the desired information - this learning part amounts to
+  about 1/3 to 1/2 of the overall effort.
+- reviewing the code mandates a fair level of understating of
+  plugins - reviewing existing plugins helps but actually there
+  are not that many and they are highly specialized
+- Low level assembly usage for extracting key information mandates
+  a fair understanding of target CPU ABI and register clobbering
+- Given the results with the PoC it might be worth rethinking
+  some of the assumptions - the main task may well be now
+  to demonstrate the testability of glibc rather than the use
+  of the statistical method proposed for the kernel - variability
+  looks negligible - at least orders of magnitude below the kernel.
+
