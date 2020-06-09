@@ -686,7 +686,7 @@ static unsigned int fun_info_execute(){
 
 
 
-
+/* Inspired/taken from https://cpjsmith.uk/gccfe */
 static void start_unit(void *event_data, void *user_data){
     fprintf(stderr, "******************* START UNIT *******************\n");
 
@@ -751,40 +751,8 @@ static void start_unit(void *event_data, void *user_data){
     /* The result of the function is the above value. */
     DECL_RESULT (main_decl) = main_ret;
 
-    tree decls = NULL_TREE;
-
-    // Declare a variables
-    tree intArray = build_decl (UNKNOWN_LOCATION, VAR_DECL, \
-            get_identifier("array"), build_array_type(unsigned_char_type_node, \
-            build_index_type(size_int(9))));
-    TREE_ADDRESSABLE(intArray) = true;
-    TREE_USED(intArray) = true;
-
-    TREE_CHAIN( intArray ) = decls;
-    decls = intArray;
-
-
-    tree variable_pi = build_decl (UNKNOWN_LOCATION, VAR_DECL, \
-            get_identifier("pi"), build_pointer_type(integer_type_node));
-    TREE_ADDRESSABLE(variable_pi) = true;
-    TREE_USED(variable_pi) = true;
-
-    TREE_CHAIN( variable_pi ) = decls;
-    decls = variable_pi;
-
-    tree variable_i = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier("i"),   integer_type_node);
-    TREE_ADDRESSABLE(variable_i) = true;
-    TREE_USED(variable_i) = true;
-
-    TREE_CHAIN( variable_i ) = decls;
-    decls = variable_i;
-
-    DECL_INITIAL(intArray) = build_string_constant((const char*) "\n", false);
-    DECL_INITIAL(variable_pi) = build1(ADDR_EXPR,\
-            build_pointer_type(TREE_TYPE(variable_i)), variable_i);
-  /* Block to represent the scope of local variables. */
-  tree bl = build_block (NULL_TREE, NULL_TREE, main_decl, NULL_TREE);
-//    tree bl = build_block (decls, NULL_TREE, main_decl, NULL_TREE);
+    /* Block to represent the scope of local variables. */
+    tree bl = build_block (NULL_TREE, NULL_TREE, main_decl, NULL_TREE);
     DECL_INITIAL (main_decl) = bl;
     TREE_USED (bl) = true;
 
@@ -798,34 +766,6 @@ static void start_unit(void *event_data, void *user_data){
     tree main_stmts = alloc_stmt_list ();
 
 
-    append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_i),\
-                                    &main_stmts);
-
-    append_to_statement_list(build1(DECL_EXPR, void_type_node, variable_pi),\
-                                    &main_stmts);
-
-    append_to_statement_list(build1(DECL_EXPR, void_type_node, intArray),\
-                                    &main_stmts);
-
-    /* Build the puts () function declaration. */
-    /* Function type which returns int with unspecified parameters. */
-    tree puts_type = build_function_type (integer_type_node, NULL_TREE);
-    /* Function named "puts" of that type. */
-    tree puts_decl = build_decl (BUILTINS_LOCATION, FUNCTION_DECL,
-                               get_identifier ("puts"), puts_type);
-    /* Only a declaration, no definition. */
-    DECL_EXTERNAL (puts_decl) = true;
-    /* External linkage. */
-    TREE_PUBLIC (puts_decl) = true;
-    /* puts("..."); */
-    /* Expression which calls puts () with 1 argument which is a string literal
-     * containing the source file data. */
-    /* tree call_puts = build_call_expr (puts_decl, 1,
-                                    build_string_literal (
-                                        0,
-                                        0));
-       append_to_statement_list (call_puts, &main_stmts);
-    */
     /* return 0; */
     /* Assign 0 to the return value. */
     tree main_set_ret = build2 (MODIFY_EXPR, TREE_TYPE (main_ret), main_ret,
