@@ -688,7 +688,7 @@ static unsigned int fun_info_execute(){
 
 /* Inspired/taken from https://cpjsmith.uk/gccfe */
 static void start_unit(void *event_data, void *user_data){
-    fprintf(stderr, "******************* START UNIT *******************\n");
+    fprintf(stderr, "\n******************* START UNIT *******************\n");
 
     tree main_type = build_function_type_list (integer_type_node, ptr_type_node, 
                                                 uint32_type_node,
