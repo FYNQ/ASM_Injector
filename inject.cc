@@ -19,36 +19,29 @@
 #include "pretty-print.h"
 #include "gomp-constants.h"
 
-  #include "tree-pass.h"
-  #include "context.h"
-  #include "function.h"
-  #include "tree.h"
-  #include "tree-ssa-alias.h"
-  #include "internal-fn.h"
-  #include "is-a.h"
-  #include "predict.h"
-  #include "basic-block.h"
-  #include "gimple-expr.h"
-  #include "gimple.h"
-  #include "gimple-pretty-print.h"
-  #include "gimple-iterator.h"
-  #include "gimple-walk.h"
-  #include "cgraph.h"
-  #include "tree-iterator.h"
-  #include "langhooks.h"
-  #include <print-tree.h>
-  #include "line-map.h"
-  #include "c-tree.h"
-
+#include "tree-pass.h"
+#include "context.h"
+#include "function.h"
+#include "tree.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "is-a.h"
+#include "predict.h"
+#include "basic-block.h"
+#include "gimple-expr.h"
+#include "gimple.h"
+#include "gimple-pretty-print.h"
+#include "gimple-iterator.h"
+#include "gimple-walk.h"
+#include "cgraph.h"
+#include "tree-iterator.h"
+#include "langhooks.h"
+#include <print-tree.h>
+#include "line-map.h"
 
 #include "rules.h"
-#define INDENT(SPACE) do { \
-  int i; for (i = 0; i<SPACE; i++) pp_space (pp); } while (0)
 
 
-
-
-#define TDF_VOPS    (1 << 6)    /* display virtual operands */
 
 
 
@@ -63,57 +56,22 @@ static tracer_rule_map rules;
 tree global_decls = NULL_TREE;
 
 
-#define VAR_FUNCTION_OR_PARM_DECL_CHECK(NODE) \
-      TREE_CHECK3(NODE,VAR_DECL,FUNCTION_DECL,PARM_DECL)
-
-#define DECL_THIS_EXTERN(NODE) \
-  DECL_LANG_FLAG_2 (VAR_FUNCTION_OR_PARM_DECL_CHECK (NODE)) 
-
-
-#define DECL_THIS_STATIC(NODE) \
-  DECL_LANG_FLAG_6 (VAR_FUNCTION_OR_PARM_DECL_CHECK (NODE)) 
-
-#define NODE_DECL(node) (node)->decl
-#define NODE_SYMBOL(node) (node)
-
-char *g_prefix = NULL;
-
 static tree dc_decl;
 
-// We must assert that this plugin is GPL compatible
+/* Assert that this plugin is GPL compatible */
 int plugin_is_GPL_compatible;
 
-static struct plugin_info pic_gcc_plugin_info = { "1.0", "PIC plugin" };
 
-struct gcc_variable {
-          struct varpool_node * inner;
-};
-typedef struct gcc_variable gcc_variable;
-
-
-static struct plugin_info callgraph_plugin_info = {
+static struct plugin_info call_info_plugin_info = {
     .version    = "2020121",
-    .help       = "callgraph plugin\n",
+    .help       = "Dump function function name and IP on entry and exit \n",
 };
 
 
 typedef char *char_p;
 
 
-static tree gvar_tracer;
-
-static void init_tracer_global() {
-    gvar_tracer = build_decl(UNKNOWN_LOCATION, VAR_DECL, NULL_TREE,\
-                                ptr_type_node);
-    DECL_NAME(gvar_tracer) = create_tmp_var_name("TRACER_GLOBAL");
-    DECL_ARTIFICIAL(gvar_tracer) = 1;
-    TREE_STATIC(gvar_tracer) = 1;
-    TREE_USED(gvar_tracer) = 1;
-    TREE_PUBLIC(gvar_tracer) = 0;
-    varpool_finalize_decl(gvar_tracer);
-}
-
-
+/*
 static tree callback_op(tree *t, int *, void *data) {
     return NULL;
 }
@@ -123,17 +81,11 @@ static tree callback_stmt(gimple_stmt_iterator *gsi,
               bool *handled_all_ops,  struct walk_stmt_info *wi) {
     return NULL;
 }
-
+*/
 
 
 tree build_string_constant(const char* string, int isConst) {
     size_t len = strlen(string);
-//    tree index_type = build_index_type(size_int(len));
-//    tree const_char_type = isConst ?  \
-                            build_qualified_type(unsigned_char_type_node, \
-                            TYPE_QUAL_CONST) : unsigned_char_type_node;
-
-//    tree string_type = build_array_type(const_char_type, index_type);
     tree string_type = build_array_type_nelts (char_type_node, len);
     TYPE_STRING_FLAG(string_type) = 1;
     tree res = build_string(len, string);
@@ -188,78 +140,42 @@ static bool flag_instrument_functions_exclude_p (tree fndecl)
 }
 
 
-
+/* Let's push all registers */
 gimple_seq push_stack() {
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
     gimple g;
-
-
-    g = gimple_build_asm_vec("add $-0x128,%%rsp", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
-
 
     g = gimple_build_asm_vec("push %%r8\n\tpush %%r9\n\tpush %%r10\n\tpush %%r11\n\tpush %%r12\n\tpush %%r13\n\tpush %%r14\n\tpush %%r15\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-
-    g = gimple_build_asm_vec("push %%rbx\n\tpush %%rsi\n\tpush %%rdx\n\tpush        %%rdi\n\tpush %%rax\n\tpush %%rcx\n\t", NULL, NULL, NULL, NULL);
+    g = gimple_build_asm_vec("push %%rbx\n\tpush %%rsi\n\tpush %%rdx\n\tpush %%rdi\n\tpush %%rax\n\tpush %%rcx\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
-
-
-
-    vec<tree, va_gc> *vec_fence = NULL;
-    tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
-    vec_safe_push(vec_fence, fence);
-
-    g = gimple_build_asm_vec("mfence", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
 
     return seq;
 }
 
 
+/* Pop all registers */
 gimple_seq pop_stack() {
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
     gimple g;
-    tree clobber;
-    vec<tree, va_gc> *vec_clobber = NULL;
 
-    vec<tree, va_gc> *vec_fence = NULL;
-    tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
-    vec_safe_push(vec_fence, fence);
-
-    g = gimple_build_asm_vec("mfence", NULL, NULL, vec_fence, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
- 
- 
-    g = gimple_build_asm_vec("pop %%rcx\n\tpop %%rax\n\tpop %%rdi\n\tpop %%rdx\n\tpop %%rsi\n\tpop %%rbx\n\t", NULL, NULL, vec_clobber, NULL);
+    g = gimple_build_asm_vec("pop %%rcx\n\tpop %%rax\n\tpop %%rdi\n\tpop %%rdx\n\tpop %%rsi\n\tpop %%rbx\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("pop %%r15\n\tpop %%r14\n\tpop %%r13\n\tpop %%r12\n\tpop %%r11\n\tpop %%r10\n\tpop %%r9\n\tpop %%r8\n\t", NULL, NULL,           vec_clobber, NULL);
+    g = gimple_build_asm_vec("pop %%r15\n\tpop %%r14\n\tpop %%r13\n\tpop %%r12\n\tpop %%r11\n\tpop %%r10\n\tpop %%r9\n\tpop %%r8\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-    g = gimple_build_asm_vec("sub $-0x128,%%rsp", NULL, NULL, NULL, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
     return seq;
 }
 
@@ -267,20 +183,16 @@ gimple_seq pop_stack() {
 
 /* rsi ... pointer to buffer, needs to be set before calling
  * len of message
- * out could be 1(stdout) or 2 (stderr)
- * */
-//gimple_seq print_str2(tree str, tree len, tree _fd) {
+ */
 gimple_seq print_str2(tree str, tree len) {
     gimple g;
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
-    tree len_info, fd_info;
+    tree len_info;
     vec<tree, va_gc> *vec_input = NULL;
-    vec<tree, va_gc> *vec_fd = NULL;
     vec<tree, va_gc> *vec_clobber = NULL;
     vec<tree, va_gc> *vec_fence = NULL;
 
-    tree _fd = build_int_cst(long_unsigned_type_node, 1);
     /* rax syscall */
     tree syscall_nr = build_int_cst(long_unsigned_type_node, 1);
     tree syscall = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
@@ -318,22 +230,12 @@ gimple_seq print_str2(tree str, tree len) {
     tree fence = build_tree_list(NULL_TREE, build_const_char_string(7, "memory"));
     vec_safe_push(vec_fence, fence);
 
-    g = gimple_build_asm_vec("lfence", NULL, NULL, vec_fence, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
- 
     /* for length we use edx because length is unsigned int */
     g = gimple_build_asm_vec("movq %0, %%rax\n\tmovq %1, %%rdi\n\tmov %2,%%edx\n\tmovq %3,%%rsi\n\tsyscall\n\t", vec_input, NULL, vec_clobber, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-    g = gimple_build_asm_vec("lfence", NULL, NULL, vec_fence, NULL);
-    asm_or_stmt = as_a_gasm(g);
-    gimple_asm_set_volatile(asm_or_stmt, true);
-//    gimple_seq_add_stmt(&seq, g);
- 
     return seq;
 }
 
@@ -344,21 +246,21 @@ gimple_seq print_str2(tree str, tree len) {
  * rsi ... output buffer on stack again
  */
 gimple_seq print_addr(tree addr) {
-    vec<tree, va_gc> *vec_input = NULL;
-    vec<tree, va_gc> *vec_input_addr = NULL;
-    vec<tree, va_gc> *vec_clobber = NULL;    
+    int i;
+    tree clobber;
     gasm *asm_or_stmt;
     gimple_seq seq = NULL;
-    gimple_seq sseq = NULL;
     gimple g;
-    tree clobber;
+
+    vec<tree, va_gc> *vec_input = NULL;
+    vec<tree, va_gc> *vec_input_addr = NULL;
+    vec<tree, va_gc> *vec_clobber = NULL; 
 
     tree taddr = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
     taddr = chainon(NULL_TREE, build_tree_list(taddr, addr));
     vec_safe_push(vec_input_addr, taddr);
 
     g = gimple_build_asm_vec("mov %0, %%rdi", vec_input_addr, NULL, NULL,  NULL);
-    //g = gimple_build_asm_vec("movq $0xdeadbeefdeadbeef, %%rdi", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
@@ -394,8 +296,6 @@ gimple_seq print_addr(tree addr) {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
 
-
-
     g = gimple_build_asm_vec("xor %%eax, %%eax", NULL, NULL, NULL,  NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
@@ -406,7 +306,6 @@ gimple_seq print_addr(tree addr) {
     gimple_asm_set_volatile(asm_or_stmt, true);
     gimple_seq_add_stmt(&seq, g);
  
-    int i;
     for (i=0; i<16; i++) {
         g = gimple_build_asm_vec("rol $4,%%rdi\n\t", NULL, NULL, NULL,  NULL);
         asm_or_stmt = as_a_gasm(g);
@@ -445,9 +344,7 @@ gimple_seq print_addr(tree addr) {
         gimple_seq_add_stmt(&seq, g);
     }
 
-
-//    clobber = build_tree_list(NUL_TREE, build_const_char_string(4, "rdi"));
-//    vec_safe_push(vec_clobber, clobber);
+    /* Define clobber */
     clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rdx"));
     vec_safe_push(vec_clobber, clobber);
     clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rsi"));
@@ -455,8 +352,6 @@ gimple_seq print_addr(tree addr) {
     clobber = build_tree_list(NULL_TREE, build_const_char_string(4, "rax"));
     vec_safe_push(vec_clobber, clobber);
 
-
-    tree _fd = build_int_cst(long_unsigned_type_node, 1);
     /* rax syscall */
     tree syscall_nr = build_int_cst(long_unsigned_type_node, 1);
     tree syscall = build_tree_list(NULL_TREE, build_const_char_string(2, "g"));
@@ -478,8 +373,8 @@ gimple_seq print_addr(tree addr) {
     /* rsi addr */
     tree msg_info = build_tree_list(NULL_TREE, build_const_char_string(3, "g"));
     msg_info = chainon(NULL_TREE, build_tree_list(msg_info, addr));
-//    vec_safe_push(vec_input, msg_info);
 
+    /* Make space on stack for result */
     g = gimple_build_asm_vec("sub $16,%%rsi\n\t", NULL, NULL, NULL, NULL);
     asm_or_stmt = as_a_gasm(g);
     gimple_asm_set_volatile(asm_or_stmt, true);
@@ -506,8 +401,8 @@ gimple_seq print_addr(tree addr) {
 
 
 
-
-static tree add_local(char *name, char *decl_init) {
+/* used for adding local variable */
+static tree add_local(const char *name, char *decl_init) {
     tree decl = build_decl (UNKNOWN_LOCATION, VAR_DECL,
                     get_identifier(name),
                     build_array_type(unsigned_char_type_node,
@@ -517,8 +412,6 @@ static tree add_local(char *name, char *decl_init) {
     TREE_USED(decl) = true;
     DECL_INITIAL(decl) = build_string_constant((const char*)\
                                                 decl_init, false);
-    location_t loc;
-    loc = DECL_SOURCE_LOCATION(current_function_decl);
 	DECL_CONTEXT(decl) = current_function_decl;
 	DECL_ARTIFICIAL(decl) = 1;
 
@@ -540,7 +433,8 @@ static tree add_local(char *name, char *decl_init) {
 }
 
 
-
+/* Code for instrumenting calls does not work as we have no chance
+ * to instrument indirect calls. */
 void instrument_calls() {
     basic_block bb, on_entry;
     gimple_stmt_iterator gsi;
@@ -548,13 +442,8 @@ void instrument_calls() {
     gassign *assign;
     tree decl;
     char *info;
-    size_t i;
 
     asprintf(&info, "\nCALL:%s:ADDR:", current_function_name());
-    tree len = build_int_cst(long_unsigned_type_node, strlen(info));
-
-    /*  used later */
-    tree fd = build_int_cst(long_unsigned_type_node, 1);
 
     tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer");
     decl = add_local("buf_glib_tracer", info);
@@ -580,20 +469,23 @@ void instrument_calls() {
     }
 }
 
-void instrument_exit(){
+
+/* Instrument function exit */
+void instrument_exit() {
     gimple call, g;
     basic_block on_exit;
-    gimple_stmt_iterator gsi;
     gimple_seq seq = NULL;
     gasm *asm_or_stmt;
-    //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
-    char *fun_info, *addr_buf;
-    tree fun_info_decl, buf_decl;
-    tree fun_info_expr, buf_expr;
+
+    char *fun_info; //, *addr_buf;
+    tree fun_info_decl; //, buf_decl;
+    tree fun_info_expr; //, buf_expr;
     vec<tree, va_gc> *vec_rbp_buf = NULL; 
     edge e;
     edge_iterator ei;
 
+    /* Interface for introducing rules not used at the moment */
+    //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
 
     //if (rs == NULL) {
     //    return 0;
@@ -607,14 +499,12 @@ void instrument_exit(){
             /* TODO: Re-think this DECL_EXTERNAL statement */
             && !(DECL_EXTERNAL (cfun->decl)) ) {
 
-
-        gassign *assign;
-        tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer3");
+//        tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer3");
         /* Variable decl fun_expr contains function name string */
         asprintf(&fun_info, ":EXIT:%s\n", current_function_name());
         fun_info_decl = add_local("exit_buf_gt", fun_info);
         fun_info_expr = build_fold_addr_expr(fun_info_decl);
-        assign = gimple_build_assign(buf_ref, fun_info_expr);
+//        assign = gimple_build_assign(buf_ref, fun_info_expr);
         tree len = build_int_cst(long_unsigned_type_node, strlen(fun_info));
         free(fun_info);
 
@@ -629,7 +519,6 @@ void instrument_exit(){
         on_exit = EXIT_BLOCK_PTR_FOR_FN(cfun);
 
         FOR_EACH_EDGE(e, ei, on_exit->preds) {
-            location_t loc;
             gimple_stmt_iterator gsi;
             gimple stmt;
 
@@ -640,9 +529,6 @@ void instrument_exit(){
             gcc_assert(gimple_code(stmt) == GIMPLE_RETURN ||
                    gimple_call_builtin_p(stmt, BUILT_IN_RETURN));
 
-            loc = gimple_location(stmt);
-
- 
 	        tree addr_var = create_tmp_var(long_long_unsigned_type_node,
                                             "addr_rbp");
 	        add_referenced_var(addr_var);
@@ -659,17 +545,7 @@ void instrument_exit(){
             gimple_asm_set_volatile(asm_or_stmt, true);
             gimple_seq_add_stmt(&seq, g);
 
-
-            /*save to buffer */
-            g = gimple_build_asm_vec("movq %%rcx, %0\n\t", NULL, outputs,
-                                    NULL,  NULL);
-            asm_or_stmt = as_a_gasm(g);
-            gimple_asm_set_volatile(asm_or_stmt, true);
-//            gimple_seq_add_stmt(&seq, g);
-
             call = gimple_build_call(dc_decl, 3, fun_info_expr, len, addr_var);
-            //gimple_set_location(g, loc);
-            //gsi_insert_before(&gsi, call, GSI_SAME_STMT);
             gimple_seq_add_stmt(&seq, call);
             gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
         }
@@ -684,11 +560,13 @@ void instrument_entry(){
     gimple_stmt_iterator gsi;
     gimple_seq seq = NULL;
     gasm *asm_or_stmt;
-    //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
-    char *fun_info, *addr_buf;
-    tree fun_info_decl, buf_decl;
-    tree fun_info_expr, buf_expr;
+    char *fun_info; //, *addr_buf;
+    tree fun_info_decl;//, buf_decl;
+    tree fun_info_expr; //, buf_expr;
     vec<tree, va_gc> *vec_rbp_buf = NULL;
+
+    /* Interface for introducing rules not used at the moment */
+    //const tracer_ruleset *rs = tracer_get_ruleset(fun_name);
 
     //if (rs == NULL) {
     //    return 0;
@@ -701,7 +579,6 @@ void instrument_entry(){
             && !flag_instrument_functions_exclude_p (cfun->decl)
             /* TODO: Re-think this DECL_EXTERNAL statement */
             && !(DECL_EXTERNAL (cfun->decl)) ) {
-
 
         gassign *assign;
         tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer2");
@@ -740,6 +617,7 @@ void instrument_entry(){
 	    output = chainon(NULL_TREE, build_tree_list(output, addr_var));
         vec<tree, va_gc> *outputs = NULL;
         vec_safe_push(outputs, output);
+
         /* save to buffer */
         g = gimple_build_asm_vec("movq %%rcx, %0\n\t", NULL, outputs,
                                     NULL,  NULL);
@@ -754,7 +632,7 @@ void instrument_entry(){
     }
 }
 
-
+/* Add code to dump_call_info funcion */
 static void create_dump_fun() {
     basic_block on_entry;
     gimple_stmt_iterator gsi;
@@ -780,8 +658,6 @@ static void create_dump_fun() {
     seq = print_str2(arg_str, arg_str_len);
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
-
-
     seq = pop_stack();
     gsi_insert_seq_before(&gsi, seq, GSI_NEW_STMT);
 
@@ -795,15 +671,10 @@ static void create_dump_fun() {
     return;
 }
 
-static unsigned int callgraph_execute(){
+static unsigned int fun_info_execute(){
     if (strncmp("dump_call_info", current_function_name(), \
                             strlen("dump_call_info")) == 0) {
-        /* init global variable, used to save return 
-           value of dump function 
-           TODO: check if realy needed
-        */
         /* We do not instrument dump_call_info function */
-        //init_tracer_global();
         create_dump_fun();
         return 0;
     }
@@ -986,7 +857,7 @@ static void start_unit(void *event_data, void *user_data){
 }
 
 
-#define PASS_NAME callgraph
+#define PASS_NAME fun_info
 
 #define NO_GATE
 #define TODO_FLAGS_FINISH TODO_dump_func | TODO_verify_stmts | TODO_update_ssa_no_phi |     TODO_verify_flow
@@ -1028,14 +899,11 @@ int plugin_init (struct plugin_name_args *plugin_info,
     tracer_parse_rules(rfl, rules_file.c_str());
     fclose(rfl);
 
-    PASS_INFO(callgraph, "ssa", 1, PASS_POS_INSERT_AFTER);
-//    PASS_INFO(callgraph, "tsan0", 1, PASS_POS_INSERT_BEFORE);
-    // Register the phase right after omplower
-    struct register_pass_info pass_info;
+    PASS_INFO(fun_info, "ssa", 1, PASS_POS_INSERT_AFTER);
 
-    register_callback(plugin_name, PLUGIN_INFO, NULL, &callgraph_plugin_info);
-    register_callback (plugin_name, PLUGIN_PASS_MANAGER_SETUP, NULL, &callgraph_pass_info);
-//    register_callback(plugin_name, PLUGIN_EARLY_GIMPLE_PASSES_END, start_unit, NULL);
+    register_callback(plugin_name, PLUGIN_INFO, NULL, &call_info_plugin_info);
+    register_callback (plugin_name, PLUGIN_PASS_MANAGER_SETUP, NULL,
+                                &fun_info_pass_info);
     register_callback(plugin_name, PLUGIN_START_UNIT, start_unit, NULL);
     return 0;
 }
