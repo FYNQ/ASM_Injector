@@ -496,7 +496,6 @@ void instrument_exit() {
     /* We do not instrument or inlined functions */
     if (!(DECL_DECLARED_INLINE_P (cfun->decl))
             && !flag_instrument_functions_exclude_p (cfun->decl)
-            /* TODO: Re-think this DECL_EXTERNAL statement */
             && !(DECL_EXTERNAL (cfun->decl)) ) {
 
 //        tree buf_ref = create_var(unsigned_char_type_node, "buf_tracer3");
