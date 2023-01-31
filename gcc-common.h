@@ -35,7 +35,9 @@
 #include "ggc.h"
 #include "timevar.h"
 
+#if BUILDING_GCC_VERSION < 10000
 #include "params.h"
+#endif
 
 #if BUILDING_GCC_VERSION <= 4009
 #include "pointer-set.h"
@@ -179,23 +181,6 @@ static inline tree build_const_char_string(int len, const char *str)
 	TREE_STATIC(cstr) = 1;
 	return cstr;
 }
-
-
-static inline tree build_char_string(int len, const char *str)
-{
-    tree cstr, elem, index, type;
-
-    cstr = build_string(len, str);
-    elem = build_type_variant(char_type_node, 1, 0);
-    index = build_index_type(size_int(len - 1));
-    type = build_array_type(elem, index);
-    TREE_TYPE(cstr) = type;
-    TREE_CONSTANT(cstr) = 0;
-    TREE_READONLY(cstr) = 0;
-    TREE_STATIC(cstr) = 0;
-    return cstr;
-}
-
 
 #define PASS_INFO(NAME, REF, ID, POS)		\
 struct register_pass_info NAME##_pass_info = {	\
@@ -864,6 +849,7 @@ static inline gimple gimple_build_assign_with_ops(enum tree_code subcode, tree l
 	return gimple_build_assign(lhs, subcode, op1, op2 PASS_MEM_STAT);
 }
 
+#if BUILDING_GCC_VERSION < 10000
 template <>
 template <>
 inline bool is_a_helper<const ggoto *>::test(const_gimple gs)
@@ -877,6 +863,7 @@ inline bool is_a_helper<const greturn *>::test(const_gimple gs)
 {
 	return gs->code == GIMPLE_RETURN;
 }
+#endif
 
 static inline gasm *as_a_gasm(gimple stmt)
 {
