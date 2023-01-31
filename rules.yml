@@ -1,6 +1,0 @@
-dl-machine.h:
-  blacklist: |
-    _dl_sysdep_start
-  whitelist: |
-    * 
-
