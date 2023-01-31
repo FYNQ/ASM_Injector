@@ -15,43 +15,12 @@
 #include <libgen.h>
 #include <libiberty.h>
 #include "gcc-common.h"
+
 #include "tree-iterator.h"
-#include "pretty-print.h"
-#include "gomp-constants.h"
-
-#include "tree-pass.h"
-#include "context.h"
-#include "function.h"
-#include "tree.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
-#include "is-a.h"
-#include "predict.h"
-#include "basic-block.h"
-#include "gimple-expr.h"
-#include "gimple.h"
-#include "gimple-pretty-print.h"
-#include "gimple-iterator.h"
-#include "gimple-walk.h"
-#include "cgraph.h"
-#include "tree-iterator.h"
-#include "langhooks.h"
-#include <print-tree.h>
-#include "line-map.h"
-
-#include "rules.h"
-
-
-
 
 
 using namespace std;
 
-
-static char *rfile = NULL;
-
-typedef map<string, tracer_ruleset> tracer_rule_map;
-static tracer_rule_map rules;
 
 tree global_decls = NULL_TREE;
 
@@ -808,7 +777,7 @@ static void start_unit(void *event_data, void *user_data){
 
 int plugin_init (struct plugin_name_args *plugin_info,
              	 struct plugin_gcc_version *version){
-    int i;
+
     const char * const plugin_name = plugin_info->base_name;
 	// We check the current gcc loading this plugin against the gcc we used to
 	// created this plugin
@@ -817,27 +786,6 @@ int plugin_init (struct plugin_name_args *plugin_info,
                 GCCPLUGIN_VERSION_MAJOR, GCCPLUGIN_VERSION_MINOR);
 		return 1;
     }
-    for (i = 0; i < plugin_info->argc; ++i) {
-        if (strcmp (plugin_info->argv[i].key, "rules") == 0) {
-            asprintf(&rfile, "%s", plugin_info->argv[i].value);
-        }
-    }
-    if (rfile == NULL) {
-        fprintf(stderr, "Error: No rule file found\n"); 
-        return 0;
-    }
-    string rules_file(rfile);
-    FILE *rfl = fopen(rules_file.c_str(), "rb");
-    if (!rfl) {
-        perror("Error");
-        fprintf(stderr, "Error: unable to open %s.\n",
-            rules_file.c_str());
-        return 1;
-    }
-
-    tracer_parse_rules(rfl, rules_file.c_str());
-    fclose(rfl);
-
     PASS_INFO(fun_info, "ssa", 1, PASS_POS_INSERT_AFTER);
 
     register_callback(plugin_name, PLUGIN_INFO, NULL, &call_info_plugin_info);
