@@ -2,7 +2,7 @@
 PLUGIN=inject.so
 SOURCES=\
         inject.cc \
-		rules.cc \
+#		rules.cc \
 		$(END)
 
 INSTALLDIR=/usr
@@ -26,7 +26,7 @@ OBJECTS=$(patsubst %.cc,%.o,$(SOURCES))
 all: $(PLUGIN)
 
 $(PLUGIN): $(OBJECTS)
-	$(CXX) $(LDFLAGS) -o $@ -shared $+ $(LDADD) -liberty -lyaml
+	$(CXX) $(LDFLAGS) -o $@ -shared $+ $(LDADD) -liberty
 
 
 %.o: %.cc
